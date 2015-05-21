@@ -10,7 +10,8 @@ import (
 func main() {
 	ctx := duktape.NewContext()
 	tba.RegisterFunc(ctx, multiply)
-	tba.RegisterFunc(ctx, printf)
+	tba.RegisterFunc(ctx, sprintf)
+	tba.RegisterObject(ctx, "console", &Log{})
 
 	ctx.EvalFile("js.js")
 }
@@ -19,6 +20,12 @@ func multiply(a, b int) int {
 	return a * b
 }
 
-func printf(format string, str ...interface{}) {
-	fmt.Printf(format, str...)
+func sprintf(format string, str ...interface{}) string {
+	return fmt.Sprintf(format, str...)
+}
+
+type Log struct{}
+
+func (l *Log) Log(str ...interface{}) {
+	fmt.Println(str...)
 }

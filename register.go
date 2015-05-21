@@ -1,6 +1,7 @@
 package tba
 
 import (
+	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -8,8 +9,40 @@ import (
 	"github.com/olebedev/go-duktape"
 )
 
-func RegisterFunc(ctx *duktape.Context, f interface{}) {
-	ctx.PushGoFunc(getFunctionName(f), func(ctx *duktape.Context) int {
+func RegisterObject(ctx *duktape.Context, name string, o interface{}) error {
+	t := reflect.TypeOf(o)
+	v := reflect.ValueOf(o)
+
+	bindings := make([]string, 0)
+	for i := 0; i < t.NumMethod(); i++ {
+		method := t.Method(i)
+		methodName := getMethodName(name, method.Name)
+		err := registerFunc(ctx, methodName, v.Method(i).Interface())
+		if err != nil {
+			return err
+		}
+
+		bindings = append(bindings, fmt.Sprintf(
+			"%s: %s", strings.ToLower(method.Name), methodName,
+		))
+	}
+
+	object := fmt.Sprintf("%s = { %s }", name, strings.Join(bindings, ", "))
+	ctx.EvalString(object)
+
+	return nil
+}
+
+func getMethodName(structName, methodName string) string {
+	return fmt.Sprintf("%s__%s", structName, strings.ToLower(methodName))
+}
+
+func RegisterFunc(ctx *duktape.Context, f interface{}) error {
+	return registerFunc(ctx, getFunctionName(f), f)
+}
+
+func registerFunc(ctx *duktape.Context, name string, f interface{}) error {
+	return ctx.PushGoFunc(name, func(ctx *duktape.Context) int {
 		args := getFunctionArgs(ctx)
 		callFunction(ctx, f, args)
 
