@@ -62,5 +62,7 @@ func callFunction(ctx *duktape.Context, f interface{}, args []reflect.Value) {
 	switch out[0].Kind() {
 	case reflect.Int:
 		ctx.PushInt(int(out[0].Int()))
+	case reflect.String:
+		ctx.PushString(out[0].String())
 	}
 }
