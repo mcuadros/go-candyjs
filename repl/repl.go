@@ -18,10 +18,18 @@ var (
 
 func main() {
 	ctx := runtime.GetContext()
-	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Printf(okPaint(prompt))
+	status := okPaint
+	if len(os.Args) > 1 {
+		if ctx.PevalFile(os.Args[1]) != 0 {
+			fmt.Println("error evalutating", os.Args[1])
+			status = errPaint
+		}
+	}
+
+	reader := bufio.NewReader(os.Stdin)
 	for {
+		fmt.Printf(status(prompt))
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Println(err)
@@ -29,9 +37,9 @@ func main() {
 		}
 
 		if ctx.PevalString(input) == 0 {
-			fmt.Printf(okPaint(prompt))
+			status = okPaint
 		} else {
-			fmt.Printf(errPaint(prompt))
+			status = errPaint
 		}
 	}
 }

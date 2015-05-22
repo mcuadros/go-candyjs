@@ -3,7 +3,6 @@ package duktape
 import (
 	"fmt"
 	"reflect"
-	"runtime"
 	"strings"
 
 	goduktape "github.com/olebedev/go-duktape"
@@ -25,13 +24,13 @@ func (ctx *Context) RegisterInstance(name string, o interface{}) error {
 	for i := 0; i < t.NumMethod(); i++ {
 		method := t.Method(i)
 		methodName := getMethodName(name, method.Name)
-		err := ctx.registerFunc(methodName, v.Method(i).Interface())
+		err := ctx.RegisterFunc(methodName, v.Method(i).Interface())
 		if err != nil {
 			return err
 		}
 
 		bindings = append(bindings, fmt.Sprintf(
-			"%s: %s", strings.ToLower(method.Name), methodName,
+			"%s: %s", lowerCapital(method.Name), methodName,
 		))
 	}
 
@@ -41,11 +40,7 @@ func (ctx *Context) RegisterInstance(name string, o interface{}) error {
 	return nil
 }
 
-func (ctx *Context) RegisterFunc(f interface{}) error {
-	return ctx.registerFunc(getFunctionName(f), f)
-}
-
-func (ctx *Context) registerFunc(name string, f interface{}) error {
+func (ctx *Context) RegisterFunc(name string, f interface{}) error {
 	tbaContext := ctx
 	return ctx.PushGoFunc(name, func(ctx *goduktape.Context) int {
 		args := tbaContext.getFunctionArgs()
@@ -138,11 +133,9 @@ func (ctx *Context) pushValue(v reflect.Value) {
 }
 
 func getMethodName(structName, methodName string) string {
-	return fmt.Sprintf("%s__%s", structName, strings.ToLower(methodName))
+	return fmt.Sprintf("%s__%s", structName, lowerCapital(methodName))
 }
 
-func getFunctionName(i interface{}) string {
-	fn := runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
-
-	return strings.Split(fn, ".")[1]
+func lowerCapital(name string) string {
+	return strings.ToLower(name[:1]) + name[1:]
 }
