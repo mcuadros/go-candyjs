@@ -1,7 +1,8 @@
-var exports = {}
+var global = {};
+var module = {};
 
-a = 42
-b = 5
+var circle = require('./circle.js');
+console.log('The area of a circle of radius 4 is ' + circle.area(4));
 
-console.log(sprintf("%d x %d = %d", a, b, multiply(a, b)))
-
+var filesize = require("./filesize.min.js")
+console.log(filesize(1234))

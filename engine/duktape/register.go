@@ -1,4 +1,4 @@
-package tba
+package duktape
 
 import (
 	"fmt"
@@ -6,15 +6,15 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/olebedev/go-duktape"
+	goduktape "github.com/olebedev/go-duktape"
 )
 
 type Context struct {
-	*duktape.Context
+	*goduktape.Context
 }
 
 func NewContext() *Context {
-	return &Context{duktape.NewContext()}
+	return &Context{goduktape.NewContext()}
 }
 
 func (ctx *Context) RegisterInstance(name string, o interface{}) error {
@@ -47,7 +47,7 @@ func (ctx *Context) RegisterFunc(f interface{}) error {
 
 func (ctx *Context) registerFunc(name string, f interface{}) error {
 	tbaContext := ctx
-	return ctx.PushGoFunc(name, func(ctx *duktape.Context) int {
+	return ctx.PushGoFunc(name, func(ctx *goduktape.Context) int {
 		args := tbaContext.getFunctionArgs()
 		tbaContext.callFunction(f, args)
 
@@ -126,9 +126,6 @@ func (ctx *Context) pushValues(vs []reflect.Value) {
 		ctx.pushValue(v)
 		ctx.PutPropIndex(arr, uint(i))
 	}
-
-	fmt.Println(vs)
-	ctx.Pop()
 }
 
 func (ctx *Context) pushValue(v reflect.Value) {
