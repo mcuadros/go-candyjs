@@ -43,30 +43,41 @@ func (ctx *Context) RegisterInstance(name string, o interface{}) error {
 func (ctx *Context) RegisterFunc(name string, f interface{}) error {
 	tbaContext := ctx
 	return ctx.PushGoFunc(name, func(ctx *goduktape.Context) int {
-		args := tbaContext.getFunctionArgs()
+		args := tbaContext.getFunctionArgs(f)
 		tbaContext.callFunction(f, args)
 
 		return 1
 	})
 }
 
-func (ctx *Context) getFunctionArgs() []reflect.Value {
+func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
+	def := reflect.ValueOf(f).Type()
+	isVariadic := def.IsVariadic()
+	inCount := def.NumIn()
+
 	top := ctx.GetTopIndex()
 	args := make([]reflect.Value, 0)
 	for i := 1; i <= top; i++ {
-		args = append(args, ctx.getValueFromContext(i))
+		var k reflect.Kind
+		if i < inCount || (i == inCount && !isVariadic) {
+			k = def.In(i - 1).Kind()
+		} else if isVariadic {
+			k = def.In(inCount - 1).Elem().Kind()
+		}
+
+		args = append(args, ctx.getValueFromContext(i, k))
 	}
 
 	return args
 }
 
-func (ctx *Context) getValueFromContext(index int) reflect.Value {
+func (ctx *Context) getValueFromContext(index int, k reflect.Kind) reflect.Value {
 	var value interface{}
 	switch { //The order is important
 	case ctx.IsString(index):
 		value = ctx.RequireString(index)
 	case ctx.IsNumber(index):
-		value = int(ctx.RequireNumber(index))
+		return ctx.getNumberFromContext(index, k)
 	case ctx.IsBoolean(index):
 		value = ctx.RequireBoolean(index)
 	case ctx.IsNull(index), ctx.IsNan(index), ctx.IsUndefined(index):
@@ -77,6 +88,18 @@ func (ctx *Context) getValueFromContext(index int) reflect.Value {
 		value = "object"
 	default:
 		value = "undefined"
+	}
+
+	return reflect.ValueOf(value)
+}
+
+func (ctx *Context) getNumberFromContext(index int, k reflect.Kind) reflect.Value {
+	var value interface{}
+	switch k {
+	case reflect.Int:
+		value = int(ctx.RequireNumber(index))
+	case reflect.Float64:
+		value = float64(ctx.RequireNumber(index))
 	}
 
 	return reflect.ValueOf(value)
@@ -127,6 +150,8 @@ func (ctx *Context) pushValue(v reflect.Value) {
 	switch v.Kind() {
 	case reflect.Int:
 		ctx.PushInt(int(v.Int()))
+	case reflect.Float64:
+		ctx.PushNumber(v.Float())
 	case reflect.String:
 		ctx.PushString(v.String())
 	}
