@@ -58,33 +58,71 @@ func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
 	top := ctx.GetTopIndex()
 	args := make([]reflect.Value, 0)
 	for i := 1; i <= top; i++ {
-		var k reflect.Kind
+		var t reflect.Type
 		if i < inCount || (i == inCount && !isVariadic) {
-			k = def.In(i - 1).Kind()
+			t = def.In(i - 1)
 		} else if isVariadic {
-			k = def.In(inCount - 1).Elem().Kind()
+			t = def.In(inCount - 1).Elem()
 		}
 
-		args = append(args, ctx.getValueFromContext(i, k))
+		var v reflect.Value
+		switch t.Kind() {
+		case reflect.Map:
+			v = ctx.getMapFromContext(i, t.Elem().Kind())
+		case reflect.Slice:
+			v = ctx.getSliceFromContext(i, t.Elem().Kind())
+		default:
+			v = ctx.getValueFromContext(i, t.Kind())
+		}
+
+		args = append(args, v)
 	}
 
 	return args
 }
 
+func (ctx *Context) getMapFromContext(index int, k reflect.Kind) reflect.Value {
+	values := make(map[string]interface{}, 0)
+	var i uint
+	for ctx.GetProp(index) {
+		i++
+
+		fmt.Println(ctx.RequireString(-1))
+		values["foo_qux"] = ctx.RequireInterface(-1)
+	}
+
+	return reflect.ValueOf(values)
+}
+
+func (ctx *Context) getSliceFromContext(index int, k reflect.Kind) reflect.Value {
+	values := make([]interface{}, 0)
+	var i uint
+	for ctx.GetPropIndex(index, i) {
+		i++
+		values = append(values, ctx.RequireInterface(-1))
+	}
+
+	return reflect.ValueOf(values)
+}
+
 func (ctx *Context) getValueFromContext(index int, k reflect.Kind) reflect.Value {
 	var value interface{}
-	switch { //The order is important
-	case ctx.IsString(index):
+	switch k {
+	case reflect.String:
 		value = ctx.RequireString(index)
-	case ctx.IsNumber(index):
-		return ctx.getNumberFromContext(index, k)
-	case ctx.IsBoolean(index):
+	case reflect.Int:
+		value = int(ctx.RequireNumber(index))
+	case reflect.Float32:
+		value = float32(ctx.RequireNumber(index))
+	case reflect.Float64:
+		value = float64(ctx.RequireNumber(index))
+	case reflect.Bool:
 		value = ctx.RequireBoolean(index)
-	case ctx.IsNull(index), ctx.IsNan(index), ctx.IsUndefined(index):
-		value = nil
-	case ctx.IsArray(index):
+	case reflect.Interface:
+		value = ctx.RequireInterface(index)
+	case reflect.Slice:
 		value = "array"
-	case ctx.IsObject(index):
+	case reflect.Map:
 		value = "object"
 	default:
 		value = "undefined"
@@ -93,16 +131,23 @@ func (ctx *Context) getValueFromContext(index int, k reflect.Kind) reflect.Value
 	return reflect.ValueOf(value)
 }
 
-func (ctx *Context) getNumberFromContext(index int, k reflect.Kind) reflect.Value {
+func (ctx *Context) RequireInterface(index int) interface{} {
 	var value interface{}
-	switch k {
-	case reflect.Int:
+
+	switch { //The order is important
+	case ctx.IsString(index):
+		value = ctx.RequireString(index)
+	case ctx.IsNumber(index):
 		value = int(ctx.RequireNumber(index))
-	case reflect.Float64:
-		value = float64(ctx.RequireNumber(index))
+	case ctx.IsBoolean(index):
+		value = ctx.RequireBoolean(index)
+	case ctx.IsNull(index), ctx.IsNan(index), ctx.IsUndefined(index):
+		value = nil
+	default:
+		value = "undefined"
 	}
 
-	return reflect.ValueOf(value)
+	return value
 }
 
 func (ctx *Context) callFunction(f interface{}, args []reflect.Value) {
