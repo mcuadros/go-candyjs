@@ -140,7 +140,7 @@ func (ctx *Context) PushValues(vs []reflect.Value) error {
 
 func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) error {
 	tbaContext := ctx
-	return ctx.PushGoFunc(name, func(ctx *goduktape.Context) int {
+	return ctx.Context.PushGlobalGoFunction(name, func(ctx *goduktape.Context) int {
 		args := tbaContext.getFunctionArgs(f)
 		if err := tbaContext.callFunction(f, args); err != nil {
 			fmt.Println("error", err)
