@@ -57,74 +57,58 @@ func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
 
 	top := ctx.GetTopIndex()
 	args := make([]reflect.Value, 0)
-	for i := 1; i <= top; i++ {
+	for index := 1; index <= top; index++ {
+		i := index - 1
 		var t reflect.Type
-		if i < inCount || (i == inCount && !isVariadic) {
-			t = def.In(i - 1)
+		if index < inCount || (index == inCount && !isVariadic) {
+			t = def.In(i)
 		} else if isVariadic {
 			t = def.In(inCount - 1).Elem()
 		}
 
-		var v reflect.Value
-		switch t.Kind() {
-		case reflect.Map:
-			v = ctx.getMapFromContext(i, t.Elem().Kind())
-		case reflect.Slice:
-			v = ctx.getSliceFromContext(i, t.Elem().Kind())
-		default:
-			v = ctx.getValueFromContext(i, t.Kind())
-		}
+		args = append(args, ctx.getValueFromContext(index, t))
+	}
 
-		args = append(args, v)
+	//Optional args
+	argc := len(args)
+	if inCount > argc {
+		for i := argc; i < inCount; i++ {
+			args = append(args, reflect.Zero(def.In(i)))
+		}
 	}
 
 	return args
 }
 
-func (ctx *Context) getMapFromContext(index int, k reflect.Kind) reflect.Value {
-	ctx.Enum(index, goduktape.EnumOwnPropertiesOnly)
-
-	values := make(map[string]interface{}, 0)
-	for ctx.Next(-1, true) {
-		values[ctx.RequireString(-2)] = ctx.RequireInterface(-1)
-		ctx.Pop2()
+func (ctx *Context) getValueFromContext(index int, t reflect.Type) reflect.Value {
+	value := ctx.RequireInterface(index)
+	if value == nil {
+		return reflect.Zero(t)
 	}
 
-	return reflect.ValueOf(values)
-}
-
-func (ctx *Context) getSliceFromContext(index int, k reflect.Kind) reflect.Value {
-	values := make([]interface{}, 0)
-	var i uint
-	for ctx.GetPropIndex(index, i) {
-		i++
-		values = append(values, ctx.RequireInterface(-1))
-	}
-
-	return reflect.ValueOf(values)
-}
-
-func (ctx *Context) getValueFromContext(index int, k reflect.Kind) reflect.Value {
-	var value interface{}
-	switch k {
-	case reflect.String:
-		value = ctx.RequireString(index)
+	switch t.Kind() {
 	case reflect.Int:
-		value = int(ctx.RequireNumber(index))
+		value = int(value.(float64))
+	case reflect.Int8:
+		value = int8(value.(float64))
+	case reflect.Int16:
+		value = int16(value.(float64))
+	case reflect.Int32:
+		value = int32(value.(float64))
+	case reflect.Int64:
+		value = int64(value.(float64))
+	case reflect.Uint:
+		value = uint(value.(float64))
+	case reflect.Uint8:
+		value = uint8(value.(float64))
+	case reflect.Uint16:
+		value = uint16(value.(float64))
+	case reflect.Uint32:
+		value = uint32(value.(float64))
+	case reflect.Uint64:
+		value = uint64(value.(float64))
 	case reflect.Float32:
-		value = float32(ctx.RequireNumber(index))
-	case reflect.Float64:
-		value = float64(ctx.RequireNumber(index))
-	case reflect.Bool:
-		value = ctx.RequireBoolean(index)
-	case reflect.Interface:
-		value = ctx.RequireInterface(index)
-	case reflect.Slice:
-		value = "array"
-	case reflect.Map:
-		value = "object"
-	default:
-		value = "undefined"
+		value = float32(value.(float64))
 	}
 
 	return reflect.ValueOf(value)
@@ -133,20 +117,49 @@ func (ctx *Context) getValueFromContext(index int, k reflect.Kind) reflect.Value
 func (ctx *Context) RequireInterface(index int) interface{} {
 	var value interface{}
 
-	switch { //The order is important
-	case ctx.IsString(index):
+	switch ctx.GetType(index) {
+	case goduktape.TypeString:
 		value = ctx.RequireString(index)
-	case ctx.IsNumber(index):
-		value = int(ctx.RequireNumber(index))
-	case ctx.IsBoolean(index):
+	case goduktape.TypeNumber:
+		value = ctx.RequireNumber(index)
+	case goduktape.TypeBoolean:
 		value = ctx.RequireBoolean(index)
-	case ctx.IsNull(index), ctx.IsNan(index), ctx.IsUndefined(index):
+	case goduktape.TypeObject:
+		if ctx.IsArray(index) {
+			value = ctx.RequireSlice(index)
+		} else {
+			value = ctx.RequireMap(index)
+		}
+	case goduktape.TypeNull, goduktape.TypeUndefined, goduktape.TypeNone:
 		value = nil
 	default:
 		value = "undefined"
 	}
 
 	return value
+}
+
+func (ctx *Context) RequireSlice(index int) []interface{} {
+	s := make([]interface{}, 0)
+	var i uint
+	for ctx.GetPropIndex(index, i) {
+		i++
+		s = append(s, ctx.RequireInterface(-1))
+	}
+
+	return s
+}
+
+func (ctx *Context) RequireMap(index int) map[string]interface{} {
+	ctx.Enum(index, goduktape.EnumOwnPropertiesOnly)
+
+	m := make(map[string]interface{}, 0)
+	for ctx.Next(-1, true) {
+		m[ctx.RequireString(-2)] = ctx.RequireInterface(-1)
+		ctx.Pop2()
+	}
+
+	return m
 }
 
 func (ctx *Context) callFunction(f interface{}, args []reflect.Value) {
