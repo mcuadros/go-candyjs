@@ -88,8 +88,8 @@ func (s *DuktapeSuite) TestRegisterFunc_Map(c *C) {
 		called = s
 	})
 
-	s.ctx.EvalString("test_in_map({foo: 42})")
-	c.Assert(called, DeepEquals, map[string]interface{}{"foo": 42})
+	s.ctx.EvalString("test_in_map({foo: 42, qux: 21})")
+	c.Assert(called, DeepEquals, map[string]interface{}{"foo": 42, "qux": 21})
 }
 
 func (s *DuktapeSuite) TestRegisterFunc_Variadic(c *C) {

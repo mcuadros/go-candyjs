@@ -82,13 +82,12 @@ func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
 }
 
 func (ctx *Context) getMapFromContext(index int, k reflect.Kind) reflect.Value {
-	values := make(map[string]interface{}, 0)
-	var i uint
-	for ctx.GetProp(index) {
-		i++
+	ctx.Enum(index, goduktape.EnumOwnPropertiesOnly)
 
-		fmt.Println(ctx.RequireString(-1))
-		values["foo_qux"] = ctx.RequireInterface(-1)
+	values := make(map[string]interface{}, 0)
+	for ctx.Next(-1, true) {
+		values[ctx.RequireString(-2)] = ctx.RequireInterface(-1)
+		ctx.Pop2()
 	}
 
 	return reflect.ValueOf(values)
