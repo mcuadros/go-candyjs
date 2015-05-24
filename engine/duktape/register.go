@@ -13,7 +13,7 @@ type Context struct {
 }
 
 func NewContext() *Context {
-	return &Context{goduktape.NewContext()}
+	return &Context{goduktape.Default()}
 }
 
 func (ctx *Context) RegisterInstance(name string, o interface{}) error {
@@ -154,7 +154,11 @@ func (ctx *Context) RequireMap(index int) map[string]interface{} {
 	ctx.Enum(index, goduktape.EnumOwnPropertiesOnly)
 
 	m := make(map[string]interface{}, 0)
-	for ctx.Next(-1, true) {
+	for ctx.IsObject(-1) {
+		if !ctx.Next(-1, true) {
+			break
+		}
+
 		m[ctx.RequireString(-2)] = ctx.RequireInterface(-1)
 		ctx.Pop2()
 	}
@@ -211,6 +215,27 @@ func (ctx *Context) pushValue(v reflect.Value) {
 		ctx.PushNumber(v.Float())
 	case reflect.String:
 		ctx.PushString(v.String())
+	case reflect.Struct:
+		ctx.PushStruct(v.Interface())
+	case reflect.Ptr:
+		ctx.pushValue(v.Elem())
+	}
+}
+
+func (ctx *Context) PushStruct(s interface{}) {
+	t := reflect.TypeOf(s)
+	v := reflect.ValueOf(s)
+
+	obj := ctx.PushObject()
+
+	fCount := t.NumField()
+	for i := 0; i < fCount; i++ {
+		value := v.Field(i)
+
+		if value.Kind() != reflect.Ptr || !value.IsNil() {
+			ctx.pushValue(value)
+			ctx.PutPropString(obj, t.Field(i).Name)
+		}
 	}
 }
 

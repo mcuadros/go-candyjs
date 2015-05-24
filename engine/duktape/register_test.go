@@ -10,13 +10,17 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type DuktapeSuite struct {
-	ctx *Context
+	ctx    *Context
+	stored interface{}
 }
 
 var _ = Suite(&DuktapeSuite{})
 
 func (s *DuktapeSuite) SetUpTest(c *C) {
 	s.ctx = NewContext()
+	s.ctx.RegisterFunc("store", func(value interface{}) {
+		s.stored = value
+	})
 }
 
 func (s *DuktapeSuite) TestRegisterFunc_String(c *C) {
@@ -114,9 +118,12 @@ func (s *DuktapeSuite) TestRegisterFunc_Map(c *C) {
 		called = s
 	})
 
-	s.ctx.EvalString("test_in_map({foo: 42, qux: 'bar'})")
+	s.ctx.EvalString("test_in_map({foo: 42, qux: {bar: 'bar'}})")
 
-	c.Assert(called, DeepEquals, map[string]interface{}{"foo": 42.0, "qux": "bar"})
+	c.Assert(called, DeepEquals, map[string]interface{}{
+		"foo": 42.0,
+		"qux": map[string]interface{}{"bar": "bar"},
+	})
 }
 
 func (s *DuktapeSuite) TestRegisterFunc_Nil(c *C) {
@@ -164,6 +171,26 @@ func (s *DuktapeSuite) TestRegisterFunc_Variadic(c *C) {
 	c.Assert(calledB, DeepEquals, []int{21, 42})
 }
 
+func (s *DuktapeSuite) TestRegisterFunc_ReturnStruct(c *C) {
+	s.ctx.RegisterFunc("test", func() MyStruct {
+		return MyStruct{Int: 42, Float64: 21.0, Nested: &MyStruct{Int: 21}}
+	})
+
+	c.Assert(s.ctx.PevalString("store(test())"), Equals, 0)
+	c.Assert(s.stored, DeepEquals, map[string]interface{}{
+		"Int":     42.0,
+		"Float64": 21.0,
+		"Nested":  map[string]interface{}{"Int": 21.0, "Float64": 0.0},
+	})
+}
+
 func (s *DuktapeSuite) TearDownTest(c *C) {
 	s.ctx.DestroyHeap()
+}
+
+type MyStruct struct {
+	Int     int
+	Float64 float64
+	Empty   *MyStruct
+	Nested  *MyStruct
 }
