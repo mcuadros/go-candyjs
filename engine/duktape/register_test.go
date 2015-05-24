@@ -1,6 +1,7 @@
 package duktape
 
 import (
+	"reflect"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -18,14 +19,71 @@ var _ = Suite(&DuktapeSuite{})
 
 func (s *DuktapeSuite) SetUpTest(c *C) {
 	s.ctx = NewContext()
-	s.ctx.RegisterFunc("store", func(value interface{}) {
+	s.ctx.PushGlobalGoFunction("store", func(value interface{}) {
 		s.stored = value
 	})
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_String(c *C) {
+func (s *DuktapeSuite) TestPushGlobalStruct(c *C) {
+	s.ctx.PushGlobalStruct("test", &MyStruct{
+		Int:     42,
+		Float64: 21.0,
+		Nested:  &MyStruct{Int: 21},
+	})
+
+	c.Assert(s.ctx.PevalString(`store([
+		test.int,
+		test.string(),
+		test.multiply(2),
+		test.nested.int,
+		test.nested.multiply(3)
+	])`), Equals, 0)
+
+	c.Assert(s.stored, DeepEquals, []interface{}{42.0, "qux", 84.0, 21.0, 63.0})
+}
+
+func (s *DuktapeSuite) TestPushGlobalValueInt(c *C) {
+	s.ctx.PushGlobalValue("test", reflect.ValueOf(42))
+	c.Assert(s.ctx.PevalString(`store(test)`), Equals, 0)
+	c.Assert(s.stored, Equals, 42.0)
+}
+
+func (s *DuktapeSuite) TestPushGlobalValueFloat(c *C) {
+	s.ctx.PushGlobalValue("test", reflect.ValueOf(42.2))
+	c.Assert(s.ctx.PevalString(`store(test)`), Equals, 0)
+	c.Assert(s.stored, Equals, 42.2)
+}
+
+func (s *DuktapeSuite) TestPushGlobalValueString(c *C) {
+	s.ctx.PushGlobalValue("test", reflect.ValueOf("foo"))
+	c.Assert(s.ctx.PevalString(`store(test)`), Equals, 0)
+	c.Assert(s.stored, Equals, "foo")
+}
+
+func (s *DuktapeSuite) TestPushGlobalValueStruct(c *C) {
+	s.ctx.PushGlobalValue("test", reflect.ValueOf(MyStruct{Int: 42}))
+	c.Assert(s.ctx.PevalString(`store(test.int)`), Equals, 0)
+	c.Assert(s.stored, Equals, 42.0)
+}
+
+func (s *DuktapeSuite) TestPushGlobalValueStructPtr(c *C) {
+	s.ctx.PushGlobalValue("test", reflect.ValueOf(&MyStruct{Int: 42}))
+	c.Assert(s.ctx.PevalString(`store(test.int)`), Equals, 0)
+	c.Assert(s.stored, Equals, 42.0)
+}
+
+func (s *DuktapeSuite) TestPushGlobalValues(c *C) {
+	s.ctx.PushGlobalValues("test", []reflect.Value{
+		reflect.ValueOf("foo"), reflect.ValueOf("qux"),
+	})
+
+	c.Assert(s.ctx.PevalString(`store(test)`), Equals, 0)
+	c.Assert(s.stored, DeepEquals, []interface{}{"foo", "qux"})
+}
+
+func (s *DuktapeSuite) TestPushGlobalGoFunction_String(c *C) {
 	var called interface{}
-	s.ctx.RegisterFunc("test_in_string", func(s string) {
+	s.ctx.PushGlobalGoFunction("test_in_string", func(s string) {
 		called = s
 	})
 
@@ -33,9 +91,9 @@ func (s *DuktapeSuite) TestRegisterFunc_String(c *C) {
 	c.Assert(called, Equals, "foo")
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Int(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Int(c *C) {
 	var ri, ri8, ri16, ri32, ri64 interface{}
-	s.ctx.RegisterFunc("test_in_int", func(i int, i8 int8, i16 int16, i32 int32, i64 int64) {
+	s.ctx.PushGlobalGoFunction("test_in_int", func(i int, i8 int8, i16 int16, i32 int32, i64 int64) {
 		ri = i
 		ri8 = i8
 		ri16 = i16
@@ -51,9 +109,9 @@ func (s *DuktapeSuite) TestRegisterFunc_Int(c *C) {
 	c.Assert(ri64, Equals, int64(64))
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Uint(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Uint(c *C) {
 	var ri, ri8, ri16, ri32, ri64 interface{}
-	s.ctx.RegisterFunc("test_in_uint", func(i uint, i8 uint8, i16 uint16, i32 uint32, i64 uint64) {
+	s.ctx.PushGlobalGoFunction("test_in_uint", func(i uint, i8 uint8, i16 uint16, i32 uint32, i64 uint64) {
 		ri = i
 		ri8 = i8
 		ri16 = i16
@@ -69,10 +127,10 @@ func (s *DuktapeSuite) TestRegisterFunc_Uint(c *C) {
 	c.Assert(ri64, Equals, uint64(64))
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Float(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Float(c *C) {
 	var called64 interface{}
 	var called32 interface{}
-	s.ctx.RegisterFunc("test_in_float", func(f64 float64, f32 float32) {
+	s.ctx.PushGlobalGoFunction("test_in_float", func(f64 float64, f32 float32) {
 		called64 = f64
 		called32 = f32
 	})
@@ -82,9 +140,9 @@ func (s *DuktapeSuite) TestRegisterFunc_Float(c *C) {
 	c.Assert(called32, Equals, float32(42.0))
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Bool(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Bool(c *C) {
 	var called interface{}
-	s.ctx.RegisterFunc("test_in_bool", func(b bool) {
+	s.ctx.PushGlobalGoFunction("test_in_bool", func(b bool) {
 		called = b
 	})
 
@@ -92,9 +150,9 @@ func (s *DuktapeSuite) TestRegisterFunc_Bool(c *C) {
 	c.Assert(called, Equals, true)
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Interface(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Interface(c *C) {
 	var called interface{}
-	s.ctx.RegisterFunc("test_in_interface", func(i interface{}) {
+	s.ctx.PushGlobalGoFunction("test_in_interface", func(i interface{}) {
 		called = i
 	})
 
@@ -102,9 +160,9 @@ func (s *DuktapeSuite) TestRegisterFunc_Interface(c *C) {
 	c.Assert(called, Equals, "qux")
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Slice(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Slice(c *C) {
 	var called interface{}
-	s.ctx.RegisterFunc("test_in_slice", func(s []interface{}) {
+	s.ctx.PushGlobalGoFunction("test_in_slice", func(s []interface{}) {
 		called = s
 	})
 
@@ -112,9 +170,9 @@ func (s *DuktapeSuite) TestRegisterFunc_Slice(c *C) {
 	c.Assert(called, DeepEquals, []interface{}{"foo", 42.0})
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Map(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Map(c *C) {
 	var called interface{}
-	s.ctx.RegisterFunc("test_in_map", func(s map[string]interface{}) {
+	s.ctx.PushGlobalGoFunction("test_in_map", func(s map[string]interface{}) {
 		called = s
 	})
 
@@ -126,9 +184,9 @@ func (s *DuktapeSuite) TestRegisterFunc_Map(c *C) {
 	})
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Nil(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Nil(c *C) {
 	var cm, cs, ci, cst interface{}
-	s.ctx.RegisterFunc("test_nil", func(m map[string]interface{}, s []interface{}, i int, st string) {
+	s.ctx.PushGlobalGoFunction("test_nil", func(m map[string]interface{}, s []interface{}, i int, st string) {
 		cm = m
 		cs = s
 		ci = i
@@ -142,9 +200,9 @@ func (s *DuktapeSuite) TestRegisterFunc_Nil(c *C) {
 	c.Assert(cst, DeepEquals, "")
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Optional(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Optional(c *C) {
 	var cm, cs, ci, cst interface{}
-	s.ctx.RegisterFunc("test_optional", func(m map[string]interface{}, s []interface{}, i int, st string) {
+	s.ctx.PushGlobalGoFunction("test_optional", func(m map[string]interface{}, s []interface{}, i int, st string) {
 		cm = m
 		cs = s
 		ci = i
@@ -158,10 +216,10 @@ func (s *DuktapeSuite) TestRegisterFunc_Optional(c *C) {
 	c.Assert(cst, DeepEquals, "")
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_Variadic(c *C) {
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Variadic(c *C) {
 	var calledA interface{}
 	var calledB interface{}
-	s.ctx.RegisterFunc("test_in_variadic", func(s string, is ...int) {
+	s.ctx.PushGlobalGoFunction("test_in_variadic", func(s string, is ...int) {
 		calledA = s
 		calledB = is
 	})
@@ -171,17 +229,13 @@ func (s *DuktapeSuite) TestRegisterFunc_Variadic(c *C) {
 	c.Assert(calledB, DeepEquals, []int{21, 42})
 }
 
-func (s *DuktapeSuite) TestRegisterFunc_ReturnStruct(c *C) {
-	s.ctx.RegisterFunc("test", func() MyStruct {
-		return MyStruct{Int: 42, Float64: 21.0, Nested: &MyStruct{Int: 21}}
+func (s *DuktapeSuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
+	s.ctx.PushGlobalGoFunction("test", func() *MyStruct {
+		return &MyStruct{Int: 42}
 	})
 
-	c.Assert(s.ctx.PevalString("store(test())"), Equals, 0)
-	c.Assert(s.stored, DeepEquals, map[string]interface{}{
-		"Int":     42.0,
-		"Float64": 21.0,
-		"Nested":  map[string]interface{}{"Int": 21.0, "Float64": 0.0},
-	})
+	c.Assert(s.ctx.PevalString("store(test().multiply(3))"), Equals, 0)
+	c.Assert(s.stored, Equals, 126.0)
 }
 
 func (s *DuktapeSuite) TearDownTest(c *C) {
@@ -193,4 +247,12 @@ type MyStruct struct {
 	Float64 float64
 	Empty   *MyStruct
 	Nested  *MyStruct
+}
+
+func (m *MyStruct) String() string {
+	return "qux"
+}
+
+func (m *MyStruct) Multiply(x int) int {
+	return m.Int * x
 }

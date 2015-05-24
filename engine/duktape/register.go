@@ -4,9 +4,17 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	goduktape "github.com/olebedev/go-duktape"
 )
+
+const goFuncCallName = "__goFuncCall__"
+const functionHandler = `
+    function(){
+	    return %s.apply(this, ['%s'].concat(Array.prototype.slice.apply(arguments)));
+    };
+`
 
 type Context struct {
 	*goduktape.Context
@@ -16,38 +24,143 @@ func NewContext() *Context {
 	return &Context{goduktape.Default()}
 }
 
-func (ctx *Context) RegisterInstance(name string, o interface{}) error {
-	t := reflect.TypeOf(o)
-	v := reflect.ValueOf(o)
-
-	bindings := make([]string, 0)
-	for i := 0; i < t.NumMethod(); i++ {
-		method := t.Method(i)
-		methodName := getMethodName(name, method.Name)
-		err := ctx.RegisterFunc(methodName, v.Method(i).Interface())
-		if err != nil {
-			return err
-		}
-
-		bindings = append(bindings, fmt.Sprintf(
-			"%s: %s", lowerCapital(method.Name), methodName,
-		))
-	}
-
-	object := fmt.Sprintf("%s = { %s }", name, strings.Join(bindings, ", "))
-	ctx.EvalString(object)
+func (ctx *Context) PushGlobalStruct(name string, s interface{}) error {
+	ctx.PushGlobalObject()
+	ctx.PushStruct(s)
+	ctx.PutPropString(-2, name)
+	ctx.Pop()
 
 	return nil
 }
 
-func (ctx *Context) RegisterFunc(name string, f interface{}) error {
+func (ctx *Context) PushStruct(s interface{}) error {
+	t := reflect.TypeOf(s)
+	v := reflect.ValueOf(s)
+
+	obj := ctx.PushObject()
+	if err := ctx.pushStructMethods(obj, t, v); err != nil {
+		return err
+	}
+
+	if t.Kind() == reflect.Ptr {
+		v = v.Elem()
+		t = v.Type()
+	}
+
+	return ctx.pushStructFields(obj, t, v)
+}
+
+func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) error {
+	fCount := t.NumField()
+	for i := 0; i < fCount; i++ {
+		value := v.Field(i)
+
+		if value.Kind() != reflect.Ptr || !value.IsNil() {
+			if err := ctx.PushValue(value); err != nil {
+				return err
+			}
+
+			ctx.PutPropString(obj, lowerCapital(t.Field(i).Name))
+		}
+	}
+
+	return nil
+}
+
+func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) error {
+	mCount := t.NumMethod()
+	for i := 0; i < mCount; i++ {
+		if err := ctx.PushGoFunction(v.Method(i).Interface()); err != nil {
+			return err
+		}
+
+		ctx.PutPropString(obj, lowerCapital(t.Method(i).Name))
+	}
+
+	return nil
+}
+
+func (ctx *Context) PushGlobalValue(name string, v reflect.Value) error {
+	ctx.PushGlobalObject()
+	if err := ctx.PushValue(v); err != nil {
+		return err
+	}
+
+	ctx.PutPropString(-2, name)
+	ctx.Pop()
+
+	return nil
+}
+
+func (ctx *Context) PushValue(v reflect.Value) error {
+	switch v.Kind() {
+	case reflect.Int:
+		ctx.PushInt(int(v.Int()))
+	case reflect.Float64:
+		ctx.PushNumber(v.Float())
+	case reflect.String:
+		ctx.PushString(v.String())
+	case reflect.Struct:
+		return ctx.PushStruct(v.Interface())
+	case reflect.Ptr:
+		if v.Elem().Kind() == reflect.Struct {
+			return ctx.PushStruct(v.Interface())
+		}
+
+		return ctx.PushValue(v.Elem())
+	}
+
+	return nil
+}
+
+func (ctx *Context) PushGlobalValues(name string, vs []reflect.Value) error {
+	ctx.PushGlobalObject()
+	if err := ctx.PushValues(vs); err != nil {
+		return err
+	}
+
+	ctx.PutPropString(-2, name)
+	ctx.Pop()
+
+	return nil
+}
+
+func (ctx *Context) PushValues(vs []reflect.Value) error {
+	arr := ctx.PushArray()
+	for i, v := range vs {
+		if err := ctx.PushValue(v); err != nil {
+			return err
+		}
+
+		ctx.PutPropIndex(arr, uint(i))
+	}
+
+	return nil
+}
+
+func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) error {
 	tbaContext := ctx
 	return ctx.PushGoFunc(name, func(ctx *goduktape.Context) int {
 		args := tbaContext.getFunctionArgs(f)
-		tbaContext.callFunction(f, args)
+		if err := tbaContext.callFunction(f, args); err != nil {
+			fmt.Println("error", err)
+		}
 
 		return 1
 	})
+}
+
+func (ctx *Context) PushGoFunction(f interface{}) error {
+	name := fmt.Sprintf("method_%d", time.Now().Nanosecond())
+	if err := ctx.PushGlobalGoFunction(name, f); err != nil {
+		return err
+	}
+
+	ctx.CompileString(goduktape.CompileFunction, fmt.Sprintf(
+		functionHandler, goFuncCallName, name,
+	))
+
+	return nil
 }
 
 func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
@@ -166,19 +279,19 @@ func (ctx *Context) RequireMap(index int) map[string]interface{} {
 	return m
 }
 
-func (ctx *Context) callFunction(f interface{}, args []reflect.Value) {
+func (ctx *Context) callFunction(f interface{}, args []reflect.Value) error {
 	out := reflect.ValueOf(f).Call(args)
 	out = ctx.handleReturnError(out)
 
 	if len(out) == 0 {
-		return
+		return nil
 	}
 
 	if len(out) > 1 {
-		ctx.pushValues(out)
-	} else {
-		ctx.pushValue(out[0])
+		return ctx.PushValues(out)
 	}
+
+	return ctx.PushValue(out[0])
 }
 
 func (ctx *Context) handleReturnError(out []reflect.Value) []reflect.Value {
@@ -197,50 +310,6 @@ func (ctx *Context) handleReturnError(out []reflect.Value) []reflect.Value {
 	}
 
 	return out
-}
-
-func (ctx *Context) pushValues(vs []reflect.Value) {
-	arr := ctx.PushArray()
-	for i, v := range vs {
-		ctx.pushValue(v)
-		ctx.PutPropIndex(arr, uint(i))
-	}
-}
-
-func (ctx *Context) pushValue(v reflect.Value) {
-	switch v.Kind() {
-	case reflect.Int:
-		ctx.PushInt(int(v.Int()))
-	case reflect.Float64:
-		ctx.PushNumber(v.Float())
-	case reflect.String:
-		ctx.PushString(v.String())
-	case reflect.Struct:
-		ctx.PushStruct(v.Interface())
-	case reflect.Ptr:
-		ctx.pushValue(v.Elem())
-	}
-}
-
-func (ctx *Context) PushStruct(s interface{}) {
-	t := reflect.TypeOf(s)
-	v := reflect.ValueOf(s)
-
-	obj := ctx.PushObject()
-
-	fCount := t.NumField()
-	for i := 0; i < fCount; i++ {
-		value := v.Field(i)
-
-		if value.Kind() != reflect.Ptr || !value.IsNil() {
-			ctx.pushValue(value)
-			ctx.PutPropString(obj, t.Field(i).Name)
-		}
-	}
-}
-
-func getMethodName(structName, methodName string) string {
-	return fmt.Sprintf("%s__%s", structName, lowerCapital(methodName))
 }
 
 func lowerCapital(name string) string {
