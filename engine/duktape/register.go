@@ -17,11 +17,15 @@ const functionHandler = `
 `
 
 type Context struct {
+	ErrorHandler func(error)
 	*goduktape.Context
 }
 
 func NewContext() *Context {
-	return &Context{goduktape.Default()}
+	return &Context{
+		ErrorHandler: defaultErrorHandler,
+		Context:      goduktape.Default(),
+	}
 }
 
 func (ctx *Context) PushGlobalStruct(name string, s interface{}) error {
@@ -56,11 +60,16 @@ func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) e
 		value := v.Field(i)
 
 		if value.Kind() != reflect.Ptr || !value.IsNil() {
+			fieldName := lowerCapital(t.Field(i).Name)
+			if fieldName == t.Field(i).Name {
+				continue
+			}
+
 			if err := ctx.PushValue(value); err != nil {
 				return err
 			}
 
-			ctx.PutPropString(obj, lowerCapital(t.Field(i).Name))
+			ctx.PutPropString(obj, fieldName)
 		}
 	}
 
@@ -108,6 +117,9 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 		}
 
 		return ctx.PushValue(v.Elem())
+	default:
+		//Returns nul if the Kind is not supported
+		ctx.PushNull()
 	}
 
 	return nil
@@ -143,7 +155,7 @@ func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) error {
 	return ctx.Context.PushGlobalGoFunction(name, func(ctx *goduktape.Context) int {
 		args := tbaContext.getFunctionArgs(f)
 		if err := tbaContext.callFunction(f, args); err != nil {
-			fmt.Println("error", err)
+			tbaContext.ErrorHandler(err)
 		}
 
 		return 1
@@ -303,7 +315,7 @@ func (ctx *Context) handleReturnError(out []reflect.Value) []reflect.Value {
 	last := out[c-1]
 	if last.Type().Name() == "error" {
 		if !last.IsNil() {
-			fmt.Println(last.Interface())
+			ctx.ErrorHandler(last.Interface().(error))
 		}
 
 		return out[:c-1]
@@ -314,4 +326,8 @@ func (ctx *Context) handleReturnError(out []reflect.Value) []reflect.Value {
 
 func lowerCapital(name string) string {
 	return strings.ToLower(name[:1]) + name[1:]
+}
+
+func defaultErrorHandler(err error) {
+	panic(err)
 }

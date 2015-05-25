@@ -1,6 +1,7 @@
 package duktape
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -13,12 +14,17 @@ func Test(t *testing.T) { TestingT(t) }
 type DuktapeSuite struct {
 	ctx    *Context
 	stored interface{}
+	err    error
 }
 
 var _ = Suite(&DuktapeSuite{})
 
 func (s *DuktapeSuite) SetUpTest(c *C) {
 	s.ctx = NewContext()
+	s.ctx.ErrorHandler = func(err error) {
+		s.err = err
+	}
+
 	s.ctx.PushGlobalGoFunction("store", func(value interface{}) {
 		s.stored = value
 	})
@@ -238,6 +244,18 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
 	c.Assert(s.stored, Equals, 126.0)
 }
 
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Error(c *C) {
+	err := errors.New("example error")
+
+	s.ctx.PushGlobalGoFunction("test", func() (string, error) {
+		return "foo", err
+	})
+
+	c.Assert(s.ctx.PevalString("store(test())"), Equals, 0)
+	c.Assert(s.stored, Equals, "foo")
+	c.Assert(s.err, Equals, err)
+}
+
 func (s *DuktapeSuite) TearDownTest(c *C) {
 	s.ctx.DestroyHeap()
 }
@@ -247,6 +265,7 @@ type MyStruct struct {
 	Float64 float64
 	Empty   *MyStruct
 	Nested  *MyStruct
+	Foo     []int
 }
 
 func (m *MyStruct) String() string {

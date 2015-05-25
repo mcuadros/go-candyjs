@@ -18,6 +18,9 @@ var (
 
 func main() {
 	ctx := runtime.GetContext()
+	ctx.ErrorHandler = func(err error) {
+		fmt.Println(errPaint(err.Error()))
+	}
 
 	status := okPaint
 	if len(os.Args) > 1 {
