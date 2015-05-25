@@ -103,8 +103,12 @@ func (ctx *Context) PushGlobalValue(name string, v reflect.Value) error {
 
 func (ctx *Context) PushValue(v reflect.Value) error {
 	switch v.Kind() {
-	case reflect.Int:
+	case reflect.Bool:
+		ctx.PushBoolean(v.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		ctx.PushInt(int(v.Int()))
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		ctx.PushInt(int(v.Uint()))
 	case reflect.Float64:
 		ctx.PushNumber(v.Float())
 	case reflect.String:

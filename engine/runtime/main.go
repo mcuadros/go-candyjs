@@ -11,6 +11,7 @@ func init() {
 	ctx.PushGlobalGoFunction("include", include)
 	ctx.PushGlobalGoFunction("require", require)
 	ctx.PushGlobalStruct("console", NewConsole())
+	ctx.PushGlobalStruct("os", NewOS())
 }
 
 func GetContext() *duktape.Context {

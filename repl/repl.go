@@ -39,7 +39,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if ctx.PevalString(input) == 0 {
+		if ctx.PevalString(fmt.Sprintf("print(%s);", input)) == 0 {
 			status = okPaint
 		} else {
 			status = errPaint
