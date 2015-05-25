@@ -1,13 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/mcuadros/tba/engine/runtime"
 
 	"github.com/agtorre/gocolorize"
+	"github.com/bobappleyard/readline"
+	"github.com/olebedev/go-duktape"
 )
 
 var (
@@ -24,25 +26,32 @@ func main() {
 
 	status := okPaint
 	if len(os.Args) > 1 {
-		if ctx.PevalFile(os.Args[1]) != 0 {
-			fmt.Println("error evalutating", os.Args[1])
+		if err := ctx.PevalFile(os.Args[1]); err != nil {
 			status = errPaint
+			fmt.Println(err.(*duktape.Error).Stack)
 		}
 	}
 
-	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Printf(status(prompt))
-		input, err := reader.ReadString('\n')
+		input, err := readline.String(status(prompt))
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			if err != io.EOF {
+				fmt.Println("error: ", err)
+			}
+			break
 		}
 
-		if ctx.PevalString(fmt.Sprintf("print(%s);", input)) == 0 {
-			status = okPaint
-		} else {
+		if err := ctx.PevalString(input); err != nil {
 			status = errPaint
+			fmt.Println(err.(*duktape.Error).Stack)
+		} else {
+			readline.AddHistory(input)
+
+			status = okPaint
+			result := ctx.JsonEncode(-1)
+			if len(result) != 0 {
+				fmt.Println(result)
+			}
 		}
 	}
 }

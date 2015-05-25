@@ -28,9 +28,25 @@ func NewContext() *Context {
 	}
 }
 
+func (ctx *Context) SetRequireFunction(f interface{}) error {
+	ctx.PushGlobalObject()
+	ctx.GetPropString(-1, "Duktape")
+	if err := ctx.PushGoFunction(f); err != nil {
+		return err
+	}
+
+	ctx.PutPropString(-2, "modSearch")
+	ctx.Pop()
+
+	return nil
+}
+
 func (ctx *Context) PushGlobalStruct(name string, s interface{}) error {
 	ctx.PushGlobalObject()
-	ctx.PushStruct(s)
+	if err := ctx.PushStruct(s); err != nil {
+		return err
+	}
+
 	ctx.PutPropString(-2, name)
 	ctx.Pop()
 

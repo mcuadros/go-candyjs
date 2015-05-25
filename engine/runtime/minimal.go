@@ -11,15 +11,13 @@ func require(filename string) error {
 		return err
 	}
 
-	ctx.PevalString(fmt.Sprintf(`(function() {
+	return ctx.PevalString(fmt.Sprintf(`(function() {
         var exports = module.exports = {};
         %s
         return module.exports
     })()`, code))
-
-	return nil
 }
 
-func include(filename string) {
-	ctx.EvalFile(filename)
+func include(filename string) error {
+	return ctx.PevalFile(filename)
 }

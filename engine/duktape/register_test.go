@@ -2,6 +2,7 @@ package duktape
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -30,6 +31,16 @@ func (s *DuktapeSuite) SetUpTest(c *C) {
 	})
 }
 
+func (s *DuktapeSuite) TestSetRequireFunction(c *C) {
+	err := s.ctx.SetRequireFunction(func(id string, a ...interface{}) string {
+		return fmt.Sprintf(`exports.store = function () { store("%s"); };`, id)
+	})
+
+	c.Assert(err, IsNil)
+	c.Assert(s.ctx.PevalString("require('foo').store()"), IsNil)
+	c.Assert(s.stored, Equals, "foo")
+}
+
 func (s *DuktapeSuite) TestPushGlobalStruct(c *C) {
 	s.ctx.PushGlobalStruct("test", &MyStruct{
 		Int:     42,
@@ -43,38 +54,38 @@ func (s *DuktapeSuite) TestPushGlobalStruct(c *C) {
 		test.multiply(2),
 		test.nested.int,
 		test.nested.multiply(3)
-	])`), Equals, 0)
+	])`), IsNil)
 
 	c.Assert(s.stored, DeepEquals, []interface{}{42.0, "qux", 84.0, 21.0, 63.0})
 }
 
 func (s *DuktapeSuite) TestPushGlobalValueInt(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(42))
-	c.Assert(s.ctx.PevalString(`store(test)`), Equals, 0)
+	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *DuktapeSuite) TestPushGlobalValueFloat(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(42.2))
-	c.Assert(s.ctx.PevalString(`store(test)`), Equals, 0)
+	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, 42.2)
 }
 
 func (s *DuktapeSuite) TestPushGlobalValueString(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf("foo"))
-	c.Assert(s.ctx.PevalString(`store(test)`), Equals, 0)
+	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, "foo")
 }
 
 func (s *DuktapeSuite) TestPushGlobalValueStruct(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(MyStruct{Int: 42}))
-	c.Assert(s.ctx.PevalString(`store(test.int)`), Equals, 0)
+	c.Assert(s.ctx.PevalString(`store(test.int)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *DuktapeSuite) TestPushGlobalValueStructPtr(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(&MyStruct{Int: 42}))
-	c.Assert(s.ctx.PevalString(`store(test.int)`), Equals, 0)
+	c.Assert(s.ctx.PevalString(`store(test.int)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
@@ -83,7 +94,7 @@ func (s *DuktapeSuite) TestPushGlobalValues(c *C) {
 		reflect.ValueOf("foo"), reflect.ValueOf("qux"),
 	})
 
-	c.Assert(s.ctx.PevalString(`store(test)`), Equals, 0)
+	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, DeepEquals, []interface{}{"foo", "qux"})
 }
 
@@ -240,7 +251,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
 		return &MyStruct{Int: 42}
 	})
 
-	c.Assert(s.ctx.PevalString("store(test().multiply(3))"), Equals, 0)
+	c.Assert(s.ctx.PevalString("store(test().multiply(3))"), IsNil)
 	c.Assert(s.stored, Equals, 126.0)
 }
 
@@ -251,7 +262,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Error(c *C) {
 		return "foo", err
 	})
 
-	c.Assert(s.ctx.PevalString("store(test())"), Equals, 0)
+	c.Assert(s.ctx.PevalString("store(test())"), IsNil)
 	c.Assert(s.stored, Equals, "foo")
 	c.Assert(s.err, Equals, err)
 }
