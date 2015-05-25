@@ -17,15 +17,11 @@ const functionHandler = `
 `
 
 type Context struct {
-	ErrorHandler func(error)
 	*goduktape.Context
 }
 
 func NewContext() *Context {
-	return &Context{
-		ErrorHandler: defaultErrorHandler,
-		Context:      goduktape.Default(),
-	}
+	return &Context{goduktape.Default()}
 }
 
 func (ctx *Context) SetRequireFunction(f interface{}) error {
@@ -174,11 +170,7 @@ func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) error {
 	tbaContext := ctx
 	return ctx.Context.PushGlobalGoFunction(name, func(ctx *goduktape.Context) int {
 		args := tbaContext.getFunctionArgs(f)
-		if err := tbaContext.callFunction(f, args); err != nil {
-			tbaContext.ErrorHandler(err)
-		}
-
-		return 1
+		return tbaContext.callFunction(f, args)
 	})
 }
 
@@ -311,43 +303,56 @@ func (ctx *Context) RequireMap(index int) map[string]interface{} {
 	return m
 }
 
-func (ctx *Context) callFunction(f interface{}, args []reflect.Value) error {
+func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
+	var err error
 	out := reflect.ValueOf(f).Call(args)
-	out = ctx.handleReturnError(out)
+	out, err = ctx.handleReturnError(out)
+	if err != nil {
+		//ctx.PushGoError(err)
+		return goduktape.ErrRetError
+	}
 
 	if len(out) == 0 {
-		return nil
+		return 1
 	}
 
 	if len(out) > 1 {
-		return ctx.PushValues(out)
+		err = ctx.PushValues(out)
+	} else {
+		err = ctx.PushValue(out[0])
 	}
 
-	return ctx.PushValue(out[0])
+	if err != nil {
+		//ctx.PushGoError(err)
+		return goduktape.ErrRetInternal
+	}
+
+	return 1
 }
 
-func (ctx *Context) handleReturnError(out []reflect.Value) []reflect.Value {
+func (ctx *Context) handleReturnError(out []reflect.Value) ([]reflect.Value, error) {
 	c := len(out)
 	if c == 0 {
-		return out
+		return out, nil
 	}
 
 	last := out[c-1]
 	if last.Type().Name() == "error" {
 		if !last.IsNil() {
-			ctx.ErrorHandler(last.Interface().(error))
+			return nil, last.Interface().(error)
 		}
 
-		return out[:c-1]
+		return out[:c-1], nil
 	}
 
-	return out
+	return out, nil
+}
+
+func (ctx *Context) PushGoError(err error) {
+	//fmt.Println(err)
+	ctx.Error(102, "foo %s", "qux")
 }
 
 func lowerCapital(name string) string {
 	return strings.ToLower(name[:1]) + name[1:]
-}
-
-func defaultErrorHandler(err error) {
-	panic(err)
 }

@@ -8,6 +8,8 @@ var ctx *duktape.Context
 
 func init() {
 	ctx = duktape.NewContext()
+	ctx.PushGlobalGoFunction("global", nil)
+	ctx.PushGlobalGoFunction("module", nil)
 	ctx.PushGlobalGoFunction("require", require)
 	ctx.PushGlobalGoFunction("include", include)
 	ctx.PushGlobalStruct("console", NewConsole())
