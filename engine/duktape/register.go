@@ -1,27 +1,18 @@
 package duktape
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
-	"time"
 
 	goduktape "github.com/olebedev/go-duktape"
 )
-
-const goFuncCallName = "__goFuncCall__"
-const functionHandler = `
-    function(){
-	    return %s.apply(this, ['%s'].concat(Array.prototype.slice.apply(arguments)));
-    };
-`
 
 type Context struct {
 	*goduktape.Context
 }
 
 func NewContext() *Context {
-	return &Context{goduktape.Default()}
+	return &Context{goduktape.New()}
 }
 
 func (ctx *Context) SetRequireFunction(f interface{}) error {
@@ -167,24 +158,19 @@ func (ctx *Context) PushValues(vs []reflect.Value) error {
 }
 
 func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) error {
-	tbaContext := ctx
-	return ctx.Context.PushGlobalGoFunction(name, func(ctx *goduktape.Context) int {
-		args := tbaContext.getFunctionArgs(f)
-		return tbaContext.callFunction(f, args)
-	})
+	return ctx.Context.PushGlobalGoFunction(name, ctx.wrapFunction(f))
 }
 
 func (ctx *Context) PushGoFunction(f interface{}) error {
-	name := fmt.Sprintf("method_%d", time.Now().Nanosecond())
-	if err := ctx.PushGlobalGoFunction(name, f); err != nil {
-		return err
+	return ctx.Context.PushGoFunction(ctx.wrapFunction(f))
+}
+
+func (ctx *Context) wrapFunction(f interface{}) func(ctx *goduktape.Context) int {
+	tbaContext := ctx
+	return func(ctx *goduktape.Context) int {
+		args := tbaContext.getFunctionArgs(f)
+		return tbaContext.callFunction(f, args)
 	}
-
-	ctx.CompileString(goduktape.CompileFunction, fmt.Sprintf(
-		functionHandler, goFuncCallName, name,
-	))
-
-	return nil
 }
 
 func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
@@ -194,11 +180,10 @@ func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
 
 	top := ctx.GetTopIndex()
 	args := make([]reflect.Value, 0)
-	for index := 1; index <= top; index++ {
-		i := index - 1
+	for index := 0; index <= top; index++ {
 		var t reflect.Type
-		if index < inCount || (index == inCount && !isVariadic) {
-			t = def.In(i)
+		if (index+1) < inCount || (index < inCount && !isVariadic) {
+			t = def.In(index)
 		} else if isVariadic {
 			t = def.In(inCount - 1).Elem()
 		}

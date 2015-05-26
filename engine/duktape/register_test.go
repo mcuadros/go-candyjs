@@ -1,7 +1,6 @@
 package duktape
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -15,17 +14,12 @@ func Test(t *testing.T) { TestingT(t) }
 type DuktapeSuite struct {
 	ctx    *Context
 	stored interface{}
-	err    error
 }
 
 var _ = Suite(&DuktapeSuite{})
 
 func (s *DuktapeSuite) SetUpTest(c *C) {
 	s.ctx = NewContext()
-	s.ctx.ErrorHandler = func(err error) {
-		s.err = err
-	}
-
 	s.ctx.PushGlobalGoFunction("store", func(value interface{}) {
 		s.stored = value
 	})
@@ -36,9 +30,9 @@ func (s *DuktapeSuite) TestSetRequireFunction(c *C) {
 		return fmt.Sprintf(`exports.store = function () { store("%s"); };`, id)
 	})
 
-	c.Assert(err, IsNil)
 	c.Assert(s.ctx.PevalString("require('foo').store()"), IsNil)
 	c.Assert(s.stored, Equals, "foo")
+	c.Assert(err, IsNil)
 }
 
 func (s *DuktapeSuite) TestPushGlobalStruct(c *C) {
@@ -256,15 +250,18 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
 }
 
 func (s *DuktapeSuite) TestPushGlobalGoFunction_Error(c *C) {
-	err := errors.New("example error")
-
 	s.ctx.PushGlobalGoFunction("test", func() (string, error) {
-		return "foo", err
+		return "foo", fmt.Errorf("foo")
 	})
 
-	c.Assert(s.ctx.PevalString("store(test())"), IsNil)
-	c.Assert(s.stored, Equals, "foo")
-	c.Assert(s.err, Equals, err)
+	c.Assert(s.ctx.PevalString(`
+		try {
+			test();
+		} catch(err) {
+			store(true);
+		}
+	`), IsNil)
+	c.Assert(s.stored, Equals, true)
 }
 
 func (s *DuktapeSuite) TearDownTest(c *C) {
