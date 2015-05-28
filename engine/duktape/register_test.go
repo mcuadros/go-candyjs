@@ -26,13 +26,48 @@ func (s *DuktapeSuite) SetUpTest(c *C) {
 }
 
 func (s *DuktapeSuite) TestSetRequireFunction(c *C) {
-	err := s.ctx.SetRequireFunction(func(id string, a ...interface{}) string {
+	s.ctx.SetRequireFunction(func(id string, a ...interface{}) string {
 		return fmt.Sprintf(`exports.store = function () { store("%s"); };`, id)
 	})
 
 	c.Assert(s.ctx.PevalString("require('foo').store()"), IsNil)
 	c.Assert(s.stored, Equals, "foo")
-	c.Assert(err, IsNil)
+}
+
+func (s *DuktapeSuite) TestPushProxiedMap_Get(c *C) {
+	s.ctx.PushProxiedStruct("test", &map[string]int{"foo": 42})
+
+	s.ctx.PevalString(`store(test.foo)`)
+	c.Assert(s.stored, Equals, 42.0)
+}
+
+func (s *DuktapeSuite) TestPushProxiedStruct_Get(c *C) {
+	s.ctx.PushProxiedStruct("test", &MyStruct{Int: 42})
+
+	s.ctx.PevalString(`store(test.int)`)
+	c.Assert(s.stored, Equals, 42.0)
+
+	s.ctx.PevalString(`try { x = test.baz; } catch(err) { store(true); }`)
+	c.Assert(s.stored, Equals, true)
+}
+
+func (s *DuktapeSuite) TestPushProxiedStruct_Set(c *C) {
+	s.ctx.PushProxiedStruct("test", &MyStruct{Int: 42})
+
+	s.ctx.PevalString(`test.int = 21; store(test.int)`)
+	c.Assert(s.stored, Equals, 21.0)
+
+	s.ctx.PevalString(`try { test.baz = 21; } catch(err) { store(true); }`)
+	c.Assert(s.stored, Equals, true)
+}
+
+func (s *DuktapeSuite) TestPushProxiedStruct_Has(c *C) {
+	s.ctx.PushProxiedStruct("test", &MyStruct{})
+	s.ctx.PevalString(`store("int" in test)`)
+	c.Assert(s.stored, Equals, true)
+
+	s.ctx.PevalString(`store("qux" in test)`)
+	c.Assert(s.stored, Equals, false)
 }
 
 func (s *DuktapeSuite) TestPushGlobalStruct(c *C) {

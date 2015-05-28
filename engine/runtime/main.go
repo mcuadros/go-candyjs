@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"fmt"
+
 	"github.com/mcuadros/tba/engine/duktape"
 )
 
@@ -18,4 +20,8 @@ func init() {
 
 func GetContext() *duktape.Context {
 	return ctx
+}
+
+type Values struct {
+	Foo int
 }

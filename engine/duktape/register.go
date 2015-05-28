@@ -7,54 +7,83 @@ import (
 	goduktape "github.com/olebedev/go-duktape"
 )
 
+const goStructPtrProp = "_goStructPtrProp"
+
 type Context struct {
+	proxy *proxy
 	*goduktape.Context
 }
 
 func NewContext() *Context {
-	return &Context{goduktape.New()}
+	ctx := &Context{Context: goduktape.New()}
+	ctx.proxy = newProxy(ctx)
+
+	return ctx
 }
 
-func (ctx *Context) SetRequireFunction(f interface{}) error {
+func (ctx *Context) SetRequireFunction(f interface{}) int {
 	ctx.PushGlobalObject()
 	ctx.GetPropString(-1, "Duktape")
-	if err := ctx.PushGoFunction(f); err != nil {
-		return err
-	}
-
+	idx := ctx.PushGoFunction(f)
 	ctx.PutPropString(-2, "modSearch")
 	ctx.Pop()
 
-	return nil
+	return idx
 }
 
-func (ctx *Context) PushGlobalStruct(name string, s interface{}) error {
+func (ctx *Context) PushGlobalStruct(name string, s interface{}) (int, error) {
 	ctx.PushGlobalObject()
-	if err := ctx.PushStruct(s); err != nil {
-		return err
+	obj, err := ctx.PushStruct(s)
+	if err != nil {
+		return -1, err
 	}
 
 	ctx.PutPropString(-2, name)
 	ctx.Pop()
 
-	return nil
+	return obj, nil
 }
 
-func (ctx *Context) PushStruct(s interface{}) error {
+func (ctx *Context) PushProxiedStruct(name string, s interface{}) int {
+	ptr := ctx.proxy.register(s)
+
+	ctx.PushGlobalObject()
+	ctx.GetPropString(-1, "Proxy")
+
 	t := reflect.TypeOf(s)
 	v := reflect.ValueOf(s)
 
 	obj := ctx.PushObject()
-	if err := ctx.pushStructMethods(obj, t, v); err != nil {
-		return err
-	}
+	ctx.PushPointer(ptr)
+	ctx.PutPropString(-2, goStructPtrProp)
+	ctx.pushStructMethods(obj, t, v)
+	ctx.PushObject()
+	ctx.PushGoFunction(ctx.proxy.get)
+	ctx.PutPropString(-2, "get")
+	ctx.PushGoFunction(ctx.proxy.set)
+	ctx.PutPropString(-2, "set")
+	ctx.PushGoFunction(ctx.proxy.has)
+	ctx.PutPropString(-2, "has")
+	ctx.New(2)
+	ctx.PutPropString(-2, name)
+	ctx.Pop()
+
+	return obj
+}
+
+func (ctx *Context) PushStruct(s interface{}) (int, error) {
+	t := reflect.TypeOf(s)
+	v := reflect.ValueOf(s)
+
+	obj := ctx.PushObject()
+	ctx.pushStructMethods(obj, t, v)
 
 	if t.Kind() == reflect.Ptr {
 		v = v.Elem()
 		t = v.Type()
 	}
 
-	return ctx.pushStructFields(obj, t, v)
+	return obj, ctx.pushStructFields(obj, t, v)
 }
 
 func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) error {
@@ -79,17 +108,12 @@ func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) e
 	return nil
 }
 
-func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) error {
+func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) {
 	mCount := t.NumMethod()
 	for i := 0; i < mCount; i++ {
-		if err := ctx.PushGoFunction(v.Method(i).Interface()); err != nil {
-			return err
-		}
-
+		ctx.PushGoFunction(v.Method(i).Interface())
 		ctx.PutPropString(obj, lowerCapital(t.Method(i).Name))
 	}
-
-	return nil
 }
 
 func (ctx *Context) PushGlobalValue(name string, v reflect.Value) error {
@@ -106,6 +130,8 @@ func (ctx *Context) PushGlobalValue(name string, v reflect.Value) error {
 
 func (ctx *Context) PushValue(v reflect.Value) error {
 	switch v.Kind() {
+	case reflect.Interface:
+		return ctx.PushValue(v.Elem())
 	case reflect.Bool:
 		ctx.PushBoolean(v.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -117,10 +143,12 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 	case reflect.String:
 		ctx.PushString(v.String())
 	case reflect.Struct:
-		return ctx.PushStruct(v.Interface())
+		_, err := ctx.PushStruct(v.Interface())
+		return err
 	case reflect.Ptr:
 		if v.Elem().Kind() == reflect.Struct {
-			return ctx.PushStruct(v.Interface())
+			_, err := ctx.PushStruct(v.Interface())
+			return err
 		}
 
 		return ctx.PushValue(v.Elem())
@@ -157,11 +185,11 @@ func (ctx *Context) PushValues(vs []reflect.Value) error {
 	return nil
 }
 
-func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) error {
+func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) (int, error) {
 	return ctx.Context.PushGlobalGoFunction(name, ctx.wrapFunction(f))
 }
 
-func (ctx *Context) PushGoFunction(f interface{}) error {
+func (ctx *Context) PushGoFunction(f interface{}) int {
 	return ctx.Context.PushGoFunction(ctx.wrapFunction(f))
 }
 
@@ -208,31 +236,7 @@ func (ctx *Context) getValueFromContext(index int, t reflect.Type) reflect.Value
 		return reflect.Zero(t)
 	}
 
-	switch t.Kind() {
-	case reflect.Int:
-		value = int(value.(float64))
-	case reflect.Int8:
-		value = int8(value.(float64))
-	case reflect.Int16:
-		value = int16(value.(float64))
-	case reflect.Int32:
-		value = int32(value.(float64))
-	case reflect.Int64:
-		value = int64(value.(float64))
-	case reflect.Uint:
-		value = uint(value.(float64))
-	case reflect.Uint8:
-		value = uint8(value.(float64))
-	case reflect.Uint16:
-		value = uint16(value.(float64))
-	case reflect.Uint32:
-		value = uint32(value.(float64))
-	case reflect.Uint64:
-		value = uint64(value.(float64))
-	case reflect.Float32:
-		value = float32(value.(float64))
-	}
-
+	value = castNumberToGoType(t.Kind(), value)
 	return reflect.ValueOf(value)
 }
 
@@ -252,6 +256,8 @@ func (ctx *Context) RequireInterface(index int) interface{} {
 		} else {
 			value = ctx.RequireMap(index)
 		}
+	case goduktape.TypePointer:
+		value = ctx.GetPointer(-1)
 	case goduktape.TypeNull, goduktape.TypeUndefined, goduktape.TypeNone:
 		value = nil
 	default:
@@ -340,4 +346,37 @@ func (ctx *Context) PushGoError(err error) {
 
 func lowerCapital(name string) string {
 	return strings.ToLower(name[:1]) + name[1:]
+}
+
+func castNumberToGoType(k reflect.Kind, v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	switch k {
+	case reflect.Int:
+		v = int(v.(float64))
+	case reflect.Int8:
+		v = int8(v.(float64))
+	case reflect.Int16:
+		v = int16(v.(float64))
+	case reflect.Int32:
+		v = int32(v.(float64))
+	case reflect.Int64:
+		v = int64(v.(float64))
+	case reflect.Uint:
+		v = uint(v.(float64))
+	case reflect.Uint8:
+		v = uint8(v.(float64))
+	case reflect.Uint16:
+		v = uint16(v.(float64))
+	case reflect.Uint32:
+		v = uint32(v.(float64))
+	case reflect.Uint64:
+		v = uint64(v.(float64))
+	case reflect.Float32:
+		v = float32(v.(float64))
+	}
+
+	return v
 }
