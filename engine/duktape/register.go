@@ -44,11 +44,17 @@ func (ctx *Context) PushGlobalStruct(name string, s interface{}) (int, error) {
 	return obj, nil
 }
 
-func (ctx *Context) PushProxiedStruct(name string, s interface{}) int {
-	ptr := ctx.proxy.register(s)
-
+func (ctx *Context) PushGlobalProxiedStruct(name string, s interface{}) int {
 	ctx.PushGlobalObject()
-	ctx.GetPropString(-1, "Proxy")
+	obj := ctx.PushProxiedStruct(s)
+	ctx.PutPropString(-2, name)
+	ctx.Pop()
+
+	return obj
+}
+
+func (ctx *Context) PushProxiedStruct(s interface{}) int {
+	ptr := ctx.proxy.register(s)
 
 	t := reflect.TypeOf(s)
 	v := reflect.ValueOf(s)
@@ -56,7 +62,12 @@ func (ctx *Context) PushProxiedStruct(name string, s interface{}) int {
 	obj := ctx.PushObject()
 	ctx.PushPointer(ptr)
 	ctx.PutPropString(-2, goStructPtrProp)
-	ctx.pushStructMethods(obj, t, v)
+	ctx.pushStructMethods(-2, t, v)
+
+	ctx.PushGlobalObject()
+	ctx.GetPropString(-1, "Proxy")
+	ctx.Dup(obj)
+
 	ctx.PushObject()
 	ctx.PushGoFunction(ctx.proxy.get)
 	ctx.PutPropString(-2, "get")
@@ -65,8 +76,9 @@ func (ctx *Context) PushProxiedStruct(name string, s interface{}) int {
 	ctx.PushGoFunction(ctx.proxy.has)
 	ctx.PutPropString(-2, "has")
 	ctx.New(2)
-	ctx.PutPropString(-2, name)
-	ctx.Pop()
+
+	ctx.Remove(-2)
+	ctx.Remove(-2)
 
 	return obj
 }
@@ -145,6 +157,8 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 	case reflect.Struct:
 		_, err := ctx.PushStruct(v.Interface())
 		return err
+	case reflect.Func:
+		ctx.PushGoFunction(v.Interface())
 	case reflect.Ptr:
 		if v.Elem().Kind() == reflect.Struct {
 			_, err := ctx.PushStruct(v.Interface())
@@ -299,7 +313,7 @@ func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
 	out := reflect.ValueOf(f).Call(args)
 	out, err = ctx.handleReturnError(out)
 	if err != nil {
-		//ctx.PushGoError(err)
+		ctx.PushGoError(err)
 		return goduktape.ErrRetError
 	}
 
@@ -314,7 +328,7 @@ func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
 	}
 
 	if err != nil {
-		//ctx.PushGoError(err)
+		ctx.PushGoError(err)
 		return goduktape.ErrRetInternal
 	}
 
@@ -341,7 +355,7 @@ func (ctx *Context) handleReturnError(out []reflect.Value) ([]reflect.Value, err
 
 func (ctx *Context) PushGoError(err error) {
 	//fmt.Println(err)
-	ctx.Error(102, "foo %s", "qux")
+	//ctx.Error(102, "foo %s", "qux")
 }
 
 func lowerCapital(name string) string {

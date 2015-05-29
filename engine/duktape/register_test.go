@@ -20,6 +20,7 @@ var _ = Suite(&DuktapeSuite{})
 
 func (s *DuktapeSuite) SetUpTest(c *C) {
 	s.ctx = NewContext()
+	s.stored = nil
 	s.ctx.PushGlobalGoFunction("store", func(value interface{}) {
 		s.stored = value
 	})
@@ -35,14 +36,14 @@ func (s *DuktapeSuite) TestSetRequireFunction(c *C) {
 }
 
 func (s *DuktapeSuite) TestPushProxiedMap_Get(c *C) {
-	s.ctx.PushProxiedStruct("test", &map[string]int{"foo": 42})
+	s.ctx.PushGlobalProxiedStruct("test", &map[string]int{"foo": 42})
 
 	s.ctx.PevalString(`store(test.foo)`)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *DuktapeSuite) TestPushProxiedStruct_Get(c *C) {
-	s.ctx.PushProxiedStruct("test", &MyStruct{Int: 42})
+	s.ctx.PushGlobalProxiedStruct("test", &MyStruct{Int: 42})
 
 	s.ctx.PevalString(`store(test.int)`)
 	c.Assert(s.stored, Equals, 42.0)
@@ -52,7 +53,7 @@ func (s *DuktapeSuite) TestPushProxiedStruct_Get(c *C) {
 }
 
 func (s *DuktapeSuite) TestPushProxiedStruct_Set(c *C) {
-	s.ctx.PushProxiedStruct("test", &MyStruct{Int: 42})
+	s.ctx.PushGlobalProxiedStruct("test", &MyStruct{Int: 42})
 
 	s.ctx.PevalString(`test.int = 21; store(test.int)`)
 	c.Assert(s.stored, Equals, 21.0)
@@ -61,8 +62,21 @@ func (s *DuktapeSuite) TestPushProxiedStruct_Set(c *C) {
 	c.Assert(s.stored, Equals, true)
 }
 
+func (s *DuktapeSuite) TestPushProxiedStruct(c *C) {
+	s.ctx.PushGlobalObject()
+	s.ctx.PushObject()
+	s.ctx.PushProxiedStruct(&MyStruct{Int: 142})
+	s.ctx.PutPropString(-2, "obj")
+	s.ctx.PutPropString(-2, "foo")
+	s.ctx.Pop()
+
+	err := s.ctx.PevalString(`store(foo.obj.int)`)
+	c.Assert(err, IsNil)
+	c.Assert(s.stored, Equals, 142.0)
+}
+
 func (s *DuktapeSuite) TestPushProxiedStruct_Has(c *C) {
-	s.ctx.PushProxiedStruct("test", &MyStruct{})
+	s.ctx.PushGlobalProxiedStruct("test", &MyStruct{})
 	s.ctx.PevalString(`store("int" in test)`)
 	c.Assert(s.stored, Equals, true)
 
@@ -71,7 +85,7 @@ func (s *DuktapeSuite) TestPushProxiedStruct_Has(c *C) {
 }
 
 func (s *DuktapeSuite) TestPushGlobalStruct(c *C) {
-	s.ctx.PushGlobalStruct("test", &MyStruct{
+	s.ctx.PushGlobalProxiedStruct("test", &MyStruct{
 		Int:     42,
 		Float64: 21.0,
 		Nested:  &MyStruct{Int: 21},
@@ -79,10 +93,10 @@ func (s *DuktapeSuite) TestPushGlobalStruct(c *C) {
 
 	c.Assert(s.ctx.PevalString(`store([
 		test.int,
-		test.string(),
-		test.multiply(2),
-		test.nested.int,
-		test.nested.multiply(3)
+      	test.string(),
+	    test.multiply(2),
+	    test.nested.int,
+	    test.nested.multiply(3)
 	])`), IsNil)
 
 	c.Assert(s.stored, DeepEquals, []interface{}{42.0, "qux", 84.0, 21.0, 63.0})

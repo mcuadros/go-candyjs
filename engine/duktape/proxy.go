@@ -65,7 +65,11 @@ func (p *proxy) getField(t map[string]interface{}, k string) (reflect.Value, err
 	v := reflect.ValueOf(p.structs[ptr]).Elem()
 	switch v.Kind() {
 	case reflect.Struct:
-		r = v.FieldByName(strings.Title(k))
+		k = strings.Title(k)
+		r = v.FieldByName(k)
+		if !r.IsValid() {
+			r = reflect.ValueOf(p.structs[ptr]).MethodByName(k)
+		}
 	case reflect.Map:
 		vk := reflect.ValueOf(k)
 		r = v.MapIndex(vk)
