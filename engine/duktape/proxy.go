@@ -30,13 +30,17 @@ func (p *proxy) register(s interface{}) unsafe.Pointer {
 	return ptr
 }
 
-func (p *proxy) has(t map[string]interface{}, k string) bool {
-	_, err := p.getField(t, k)
+func (p *proxy) retrieve(ptr unsafe.Pointer) interface{} {
+	return p.structs[ptr]
+}
+
+func (p *proxy) has(t interface{}, k string) bool {
+	_, err := p.getProperty(t, k)
 	return err != UndefinedProperty
 }
 
-func (p *proxy) get(t map[string]interface{}, k string, recv interface{}) (interface{}, error) {
-	f, err := p.getField(t, k)
+func (p *proxy) get(t interface{}, k string, recv interface{}) (interface{}, error) {
+	f, err := p.getProperty(t, k)
 	if err != nil {
 		return nil, err
 	}
@@ -44,40 +48,95 @@ func (p *proxy) get(t map[string]interface{}, k string, recv interface{}) (inter
 	return f.Interface(), nil
 }
 
-func (p *proxy) set(t map[string]interface{}, k string, v, recv interface{}) (bool, error) {
-	f, err := p.getField(t, k)
+func (p *proxy) set(t interface{}, k string, v, recv interface{}) (bool, error) {
+	f, err := p.getProperty(t, k)
 	if err != nil {
 		return false, err
 	}
 
 	v = castNumberToGoType(f.Kind(), v)
+	if !f.CanSet() {
+		return false, nil
+	}
+
 	f.Set(reflect.ValueOf(v))
 	return true, nil
 }
 
-func (p *proxy) getField(t map[string]interface{}, k string) (reflect.Value, error) {
-	var r reflect.Value
-	ptr, ok := t[goStructPtrProp].(unsafe.Pointer)
-	if !ok {
-		return r, UnexpectedPointer
-	}
+func (p *proxy) enumerate(t interface{}) (interface{}, error) {
+	print(t)
+	return p.getPropertyNames(t)
+}
 
-	v := reflect.ValueOf(p.structs[ptr]).Elem()
+func (p *proxy) getPropertyNames(t interface{}) ([]string, error) {
+	v := reflect.ValueOf(t)
+	names := make([]string, 0)
 	switch v.Kind() {
 	case reflect.Struct:
-		k = strings.Title(k)
-		r = v.FieldByName(k)
-		if !r.IsValid() {
-			r = reflect.ValueOf(p.structs[ptr]).MethodByName(k)
+		cFields := v.NumField()
+		for i := 0; i < cFields; i++ {
+			names = append(names, v.Type().Field(i).Name)
 		}
-	case reflect.Map:
-		vk := reflect.ValueOf(k)
-		r = v.MapIndex(vk)
 	}
 
-	if !r.IsValid() {
+	return names, nil
+}
+
+func (p *proxy) getProperty(t interface{}, key string) (reflect.Value, error) {
+	v := reflect.ValueOf(t)
+	r, found := p.getValueFromKind(key, v)
+	if !found {
 		return r, UndefinedProperty
 	}
 
 	return r, nil
+}
+
+func (p *proxy) getValueFromKind(key string, v reflect.Value) (reflect.Value, bool) {
+	var value reflect.Value
+	var found bool
+	switch v.Kind() {
+	case reflect.Ptr:
+		value, found = p.getValueFromKindPtr(key, v)
+	case reflect.Struct:
+		value, found = p.getValueFromKindStruct(key, v)
+	case reflect.Map:
+		value, found = p.getValueFromKindMap(key, v)
+	}
+
+	if !found {
+		return p.getMethod(key, v)
+	}
+
+	return value, found
+}
+
+func (p *proxy) getValueFromKindPtr(key string, v reflect.Value) (reflect.Value, bool) {
+	r, found := p.getMethod(key, v)
+	if !found {
+		return p.getValueFromKind(key, v.Elem())
+	}
+
+	return r, found
+}
+
+func (p *proxy) getValueFromKindStruct(key string, v reflect.Value) (reflect.Value, bool) {
+	key = strings.Title(key)
+	r := v.FieldByName(key)
+
+	return r, r.IsValid()
+}
+
+func (p *proxy) getValueFromKindMap(key string, v reflect.Value) (reflect.Value, bool) {
+	kValue := reflect.ValueOf(key)
+	r := v.MapIndex(kValue)
+
+	return r, r.IsValid()
+}
+
+func (p *proxy) getMethod(key string, v reflect.Value) (reflect.Value, bool) {
+	key = strings.Title(key)
+	r := v.MethodByName(key)
+
+	return r, r.IsValid()
 }
