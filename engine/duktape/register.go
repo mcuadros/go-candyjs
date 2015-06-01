@@ -8,16 +8,16 @@ import (
 	goduktape "github.com/olebedev/go-duktape"
 )
 
-const goStructPtrProp = "\xff" + "goStructPtrProp"
+const goProxyPtrProp = "\xff" + "goProxyPtrProp"
 
 type Context struct {
-	proxy *proxy
+	storage *storage
 	*goduktape.Context
 }
 
 func NewContext() *Context {
 	ctx := &Context{Context: goduktape.New()}
-	ctx.proxy = newProxy(ctx)
+	ctx.storage = newStorage()
 
 	return ctx
 }
@@ -32,6 +32,48 @@ func (ctx *Context) SetRequireFunction(f interface{}) int {
 	return idx
 }
 
+func (ctx *Context) ProxyGlobalInterface(name string, s interface{}) int {
+	ctx.PushGlobalObject()
+	obj := ctx.ProxyInterface(s)
+	ctx.PutPropString(-2, name)
+	ctx.Pop()
+
+	return obj
+}
+
+func (ctx *Context) ProxyInterface(s interface{}) int {
+	ptr := ctx.storage.add(s)
+
+	obj := ctx.PushObject()
+	ctx.PushPointer(ptr)
+	ctx.PutPropString(-2, goProxyPtrProp)
+
+	ctx.PushGlobalObject()
+	ctx.GetPropString(-1, "Proxy")
+	ctx.Dup(obj)
+
+	ctx.PushObject()
+	ctx.PushGoFunction(p.enumerate)
+	ctx.PutPropString(-2, "enumerate")
+	ctx.PushGoFunction(p.enumerate)
+	ctx.PutPropString(-2, "ownKeys")
+	ctx.PushGoFunction(p.get)
+	ctx.PutPropString(-2, "get")
+	ctx.PushGoFunction(p.set)
+	ctx.PutPropString(-2, "set")
+	ctx.PushGoFunction(p.has)
+	ctx.PutPropString(-2, "has")
+	ctx.New(2)
+
+	ctx.Remove(-2)
+	ctx.Remove(-2)
+
+	ctx.PushPointer(ptr)
+	ctx.PutPropString(-2, goProxyPtrProp)
+
+	return obj
+}
+
 func (ctx *Context) PushGlobalStruct(name string, s interface{}) (int, error) {
 	ctx.PushGlobalObject()
 	obj, err := ctx.PushStruct(s)
@@ -43,46 +85,6 @@ func (ctx *Context) PushGlobalStruct(name string, s interface{}) (int, error) {
 	ctx.Pop()
 
 	return obj, nil
-}
-
-func (ctx *Context) PushGlobalProxiedStruct(name string, s interface{}) int {
-	ctx.PushGlobalObject()
-	obj := ctx.PushProxiedStruct(s)
-	ctx.PutPropString(-2, name)
-	ctx.Pop()
-
-	return obj
-}
-
-func (ctx *Context) PushProxiedStruct(s interface{}) int {
-	ptr := ctx.proxy.register(s)
-
-	obj := ctx.PushObject()
-	ctx.PushPointer(ptr)
-	ctx.PutPropString(-2, goStructPtrProp)
-
-	ctx.PushGlobalObject()
-	ctx.GetPropString(-1, "Proxy")
-	ctx.Dup(obj)
-
-	ctx.PushObject()
-	ctx.PushGoFunction(ctx.proxy.enumerate)
-	ctx.PutPropString(-2, "enumerate")
-	ctx.PushGoFunction(ctx.proxy.get)
-	ctx.PutPropString(-2, "get")
-	ctx.PushGoFunction(ctx.proxy.set)
-	ctx.PutPropString(-2, "set")
-	ctx.PushGoFunction(ctx.proxy.has)
-	ctx.PutPropString(-2, "has")
-	ctx.New(2)
-
-	ctx.Remove(-2)
-	ctx.Remove(-2)
-
-	ctx.PushPointer(ptr)
-	ctx.PutPropString(-2, goStructPtrProp)
-
-	return obj
 }
 
 func (ctx *Context) PushStruct(s interface{}) (int, error) {
@@ -157,12 +159,12 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 	case reflect.String:
 		ctx.PushString(v.String())
 	case reflect.Struct:
-		ctx.PushProxiedStruct(v.Interface())
+		ctx.ProxyInterface(v.Interface())
 	case reflect.Func:
 		ctx.PushGoFunction(v.Interface())
 	case reflect.Ptr:
 		if v.Elem().Kind() == reflect.Struct {
-			ctx.PushProxiedStruct(v.Interface())
+			ctx.ProxyInterface(v.Interface())
 			return nil
 		}
 
@@ -266,7 +268,7 @@ func (ctx *Context) RequireInterface(index int) interface{} {
 	case goduktape.TypeBoolean:
 		value = ctx.RequireBoolean(index)
 	case goduktape.TypeObject:
-		value = ctx.RequireProxy(index)
+		value = ctx.GetProxy(index)
 
 		if value == nil {
 			if ctx.IsArray(index) {
@@ -287,13 +289,23 @@ func (ctx *Context) RequireInterface(index int) interface{} {
 	return value
 }
 
-func (ctx *Context) RequireProxy(index int) interface{} {
-	ptr := ctx.getPropStringViaEnum(index, goStructPtrProp)
+func (ctx *Context) GetProxy(index int) interface{} {
+	ptr := ctx.getProxyPtrProp(index)
 	if ptr == nil {
 		return nil
 	}
 
-	return ctx.proxy.retrieve(ptr)
+	return ctx.storage.get(ptr)
+}
+
+func (ctx *Context) getProxyPtrProp(index int) unsafe.Pointer {
+	defer ctx.Pop()
+	ctx.GetPropString(index, goProxyPtrProp)
+	if !ctx.IsPointer(-1) {
+		return nil
+	}
+
+	return ctx.GetPointer(-1)
 }
 
 func (ctx *Context) RequireSlice(index int) []interface{} {
@@ -414,14 +426,4 @@ func castNumberToGoType(k reflect.Kind, v interface{}) interface{} {
 	}
 
 	return v
-}
-
-func (ctx *Context) getPropStringViaEnum(index int, prop string) unsafe.Pointer {
-	defer ctx.Pop()
-	ctx.GetPropString(index, goStructPtrProp)
-	if !ctx.IsPointer(-1) {
-		return nil
-	}
-
-	return ctx.GetPointer(-1)
 }

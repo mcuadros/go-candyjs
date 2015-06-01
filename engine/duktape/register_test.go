@@ -36,26 +36,26 @@ func (s *DuktapeSuite) TestSetRequireFunction(c *C) {
 	c.Assert(s.stored, Equals, "foo")
 }
 
-func (s *DuktapeSuite) TestPushProxiedStruct_Integration(c *C) {
+func (s *DuktapeSuite) TestProxyGlobalInterface_Integration(c *C) {
 	now := time.Now()
 	after := now.Add(time.Millisecond)
 
-	s.ctx.PushGlobalProxiedStruct("a", now)
-	s.ctx.PushGlobalProxiedStruct("b", after)
+	s.ctx.ProxyGlobalInterface("a", now)
+	s.ctx.ProxyGlobalInterface("b", after)
 
-	s.ctx.PevalString(`print(b.sub(a))`)
+	s.ctx.PevalString(`store(b.sub(a))`)
 	c.Assert(s.stored, Equals, 1000000.0)
 }
 
-func (s *DuktapeSuite) TestPushProxiedMap_Get(c *C) {
-	s.ctx.PushGlobalProxiedStruct("test", &map[string]int{"foo": 42})
+func (s *DuktapeSuite) TestProxyGlobalInterface_GetMap(c *C) {
+	s.ctx.ProxyGlobalInterface("test", &map[string]int{"foo": 42})
 
 	s.ctx.PevalString(`store(test.foo)`)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
-func (s *DuktapeSuite) TestPushProxiedStruct_Get(c *C) {
-	s.ctx.PushGlobalProxiedStruct("test", &MyStruct{Int: 42})
+func (s *DuktapeSuite) TestProxyGlobalInterface_GetPtr(c *C) {
+	s.ctx.ProxyGlobalInterface("test", &MyStruct{Int: 42})
 
 	s.ctx.PevalString(`store(test.int)`)
 	c.Assert(s.stored, Equals, 42.0)
@@ -64,8 +64,8 @@ func (s *DuktapeSuite) TestPushProxiedStruct_Get(c *C) {
 	c.Assert(s.stored, Equals, true)
 }
 
-func (s *DuktapeSuite) TestPushProxiedStruct_Set(c *C) {
-	s.ctx.PushGlobalProxiedStruct("test", &MyStruct{Int: 42})
+func (s *DuktapeSuite) TestProxyGlobalInterface_Set(c *C) {
+	s.ctx.ProxyGlobalInterface("test", &MyStruct{Int: 42})
 
 	s.ctx.PevalString(`test.int = 21; store(test.int)`)
 	c.Assert(s.stored, Equals, 21.0)
@@ -74,10 +74,10 @@ func (s *DuktapeSuite) TestPushProxiedStruct_Set(c *C) {
 	c.Assert(s.stored, Equals, true)
 }
 
-func (s *DuktapeSuite) TestPushProxiedStruct(c *C) {
+func (s *DuktapeSuite) TestProxyGlobalInterface(c *C) {
 	s.ctx.PushGlobalObject()
 	s.ctx.PushObject()
-	s.ctx.PushProxiedStruct(&MyStruct{Int: 142})
+	s.ctx.ProxyInterface(&MyStruct{Int: 142})
 	s.ctx.PutPropString(-2, "obj")
 	s.ctx.PutPropString(-2, "foo")
 	s.ctx.Pop()
@@ -87,8 +87,8 @@ func (s *DuktapeSuite) TestPushProxiedStruct(c *C) {
 	c.Assert(s.stored, Equals, 142.0)
 }
 
-func (s *DuktapeSuite) TestPushProxiedStruct_Has(c *C) {
-	s.ctx.PushGlobalProxiedStruct("test", &MyStruct{})
+func (s *DuktapeSuite) TestProxyGlobalInterface_Has(c *C) {
+	s.ctx.ProxyGlobalInterface("test", &MyStruct{})
 	s.ctx.PevalString(`store("int" in test)`)
 	c.Assert(s.stored, Equals, true)
 
@@ -96,8 +96,8 @@ func (s *DuktapeSuite) TestPushProxiedStruct_Has(c *C) {
 	c.Assert(s.stored, Equals, false)
 }
 
-func (s *DuktapeSuite) TestPushGlobalStruct(c *C) {
-	s.ctx.PushGlobalProxiedStruct("test", &MyStruct{
+func (s *DuktapeSuite) TestProxyGlobalInterface_Nested(c *C) {
+	s.ctx.ProxyGlobalInterface("test", &MyStruct{
 		Int:     42,
 		Float64: 21.0,
 		Nested:  &MyStruct{Int: 21},

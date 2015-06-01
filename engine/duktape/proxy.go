@@ -5,34 +5,16 @@ import (
 	"errors"
 	"reflect"
 	"strings"
-	"unsafe"
 )
 
 var (
 	UnexpectedPointer = errors.New("unexpected pointer")
 	UndefinedProperty = errors.New("undefined property")
+
+	p = &proxy{}
 )
 
-type proxy struct {
-	structs map[unsafe.Pointer]interface{}
-}
-
-func newProxy(ctx *Context) *proxy {
-	return &proxy{
-		structs: make(map[unsafe.Pointer]interface{}, 0),
-	}
-}
-
-func (p *proxy) register(s interface{}) unsafe.Pointer {
-	ptr := C.malloc(1)
-	p.structs[ptr] = s
-
-	return ptr
-}
-
-func (p *proxy) retrieve(ptr unsafe.Pointer) interface{} {
-	return p.structs[ptr]
-}
+type proxy struct{}
 
 func (p *proxy) has(t interface{}, k string) bool {
 	_, err := p.getProperty(t, k)
@@ -70,12 +52,24 @@ func (p *proxy) enumerate(t interface{}) (interface{}, error) {
 func (p *proxy) getPropertyNames(t interface{}) ([]string, error) {
 	v := reflect.ValueOf(t)
 	names := make([]string, 0)
+
+	var err error
 	switch v.Kind() {
+	case reflect.Ptr:
+		names, err = p.getPropertyNames(v.Elem().Interface())
+		if err != nil {
+			return nil, err
+		}
 	case reflect.Struct:
 		cFields := v.NumField()
 		for i := 0; i < cFields; i++ {
-			names = append(names, v.Type().Field(i).Name)
+			names = append(names, lowerCapital(v.Type().Field(i).Name))
 		}
+	}
+
+	mCount := v.NumMethod()
+	for i := 0; i < mCount; i++ {
+		names = append(names, lowerCapital(v.Type().Method(i).Name))
 	}
 
 	return names, nil
