@@ -8,7 +8,7 @@ import (
 	goduktape "github.com/olebedev/go-duktape"
 )
 
-const goStructPtrProp = "_goStructPtrProp"
+const goStructPtrProp = "\xff" + "goStructPtrProp"
 
 type Context struct {
 	proxy *proxy
@@ -57,9 +57,6 @@ func (ctx *Context) PushGlobalProxiedStruct(name string, s interface{}) int {
 func (ctx *Context) PushProxiedStruct(s interface{}) int {
 	ptr := ctx.proxy.register(s)
 
-	//t := reflect.TypeOf(s)
-	//v := reflect.ValueOf(s)
-
 	obj := ctx.PushObject()
 	ctx.PushPointer(ptr)
 	ctx.PutPropString(-2, goStructPtrProp)
@@ -77,11 +74,13 @@ func (ctx *Context) PushProxiedStruct(s interface{}) int {
 	ctx.PutPropString(-2, "set")
 	ctx.PushGoFunction(ctx.proxy.has)
 	ctx.PutPropString(-2, "has")
-
 	ctx.New(2)
 
 	ctx.Remove(-2)
 	ctx.Remove(-2)
+
+	ctx.PushPointer(ptr)
+	ctx.PutPropString(-2, goStructPtrProp)
 
 	return obj
 }
@@ -158,14 +157,13 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 	case reflect.String:
 		ctx.PushString(v.String())
 	case reflect.Struct:
-		_, err := ctx.PushStruct(v.Interface())
-		return err
+		ctx.PushProxiedStruct(v.Interface())
 	case reflect.Func:
 		ctx.PushGoFunction(v.Interface())
 	case reflect.Ptr:
 		if v.Elem().Kind() == reflect.Struct {
-			_, err := ctx.PushStruct(v.Interface())
-			return err
+			ctx.PushProxiedStruct(v.Interface())
+			return nil
 		}
 
 		return ctx.PushValue(v.Elem())
@@ -269,6 +267,7 @@ func (ctx *Context) RequireInterface(index int) interface{} {
 		value = ctx.RequireBoolean(index)
 	case goduktape.TypeObject:
 		value = ctx.RequireProxy(index)
+
 		if value == nil {
 			if ctx.IsArray(index) {
 				value = ctx.RequireSlice(index)
@@ -276,6 +275,7 @@ func (ctx *Context) RequireInterface(index int) interface{} {
 				value = ctx.RequireMap(index)
 			}
 		}
+
 	case goduktape.TypePointer:
 		value = ctx.GetPointer(-1)
 	case goduktape.TypeNull, goduktape.TypeUndefined, goduktape.TypeNone:
@@ -310,7 +310,11 @@ func (ctx *Context) RequireSlice(index int) []interface{} {
 func (ctx *Context) RequireMap(index int) map[string]interface{} {
 	m := make(map[string]interface{}, 0)
 
-	ctx.Enum(index, goduktape.NoProxyBehavior)
+	if !ctx.IsObject(index) {
+		return m
+	}
+
+	ctx.Enum(index, goduktape.EnumOwnPropertiesOnly|goduktape.NoProxyBehavior)
 	for ctx.IsObject(-1) {
 		if !ctx.Next(-1, true) {
 			break
@@ -328,6 +332,7 @@ func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
 	var err error
 	out := reflect.ValueOf(f).Call(args)
 	out, err = ctx.handleReturnError(out)
+
 	if err != nil {
 		ctx.PushGoError(err)
 		return goduktape.ErrRetError
@@ -412,27 +417,11 @@ func castNumberToGoType(k reflect.Kind, v interface{}) interface{} {
 }
 
 func (ctx *Context) getPropStringViaEnum(index int, prop string) unsafe.Pointer {
-	ctx.Enum(index, goduktape.NoProxyBehavior)
-
-	var result unsafe.Pointer
-	var done bool
-	for ctx.IsObject(-1) {
-		if !ctx.Next(-1, true) {
-			break
-		}
-
-		if ctx.RequireString(-2) == prop {
-			result = ctx.GetPointer(-1)
-			done = true
-		}
-
-		ctx.Pop2()
-
-		if done {
-			break
-		}
+	defer ctx.Pop()
+	ctx.GetPropString(index, goStructPtrProp)
+	if !ctx.IsPointer(-1) {
+		return nil
 	}
 
-	ctx.Pop()
-	return result
+	return ctx.GetPointer(-1)
 }

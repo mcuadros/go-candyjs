@@ -64,7 +64,6 @@ func (p *proxy) set(t interface{}, k string, v, recv interface{}) (bool, error) 
 }
 
 func (p *proxy) enumerate(t interface{}) (interface{}, error) {
-	print(t)
 	return p.getPropertyNames(t)
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 )
@@ -33,6 +34,17 @@ func (s *DuktapeSuite) TestSetRequireFunction(c *C) {
 
 	c.Assert(s.ctx.PevalString("require('foo').store()"), IsNil)
 	c.Assert(s.stored, Equals, "foo")
+}
+
+func (s *DuktapeSuite) TestPushProxiedStruct_Integration(c *C) {
+	now := time.Now()
+	after := now.Add(time.Millisecond)
+
+	s.ctx.PushGlobalProxiedStruct("a", now)
+	s.ctx.PushGlobalProxiedStruct("b", after)
+
+	s.ctx.PevalString(`print(b.sub(a))`)
+	c.Assert(s.stored, Equals, 1000000.0)
 }
 
 func (s *DuktapeSuite) TestPushProxiedMap_Get(c *C) {
