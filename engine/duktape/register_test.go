@@ -224,12 +224,22 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Bool(c *C) {
 
 func (s *DuktapeSuite) TestPushGlobalGoFunction_Interface(c *C) {
 	var called interface{}
-	s.ctx.PushGlobalGoFunction("test_in_interface", func(i interface{}) {
+	s.ctx.PushGlobalGoFunction("test", func(i interface{}) {
 		called = i
 	})
 
-	s.ctx.EvalString("test_in_interface('qux')")
+	s.ctx.EvalString("test('qux')")
 	c.Assert(called, Equals, "qux")
+}
+
+func (s *DuktapeSuite) TestPushGlobalGoFunction_Struct(c *C) {
+	var called *MyStruct
+	s.ctx.PushGlobalGoFunction("test", func(m *MyStruct) {
+		called = m
+	})
+
+	s.ctx.EvalString("test({'int':42})")
+	c.Assert(called.Int, Equals, 42)
 }
 
 func (s *DuktapeSuite) TestPushGlobalGoFunction_Slice(c *C) {

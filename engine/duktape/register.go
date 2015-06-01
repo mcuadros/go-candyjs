@@ -1,6 +1,7 @@
 package duktape
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"unsafe"
@@ -248,48 +249,18 @@ func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
 }
 
 func (ctx *Context) getValueFromContext(index int, t reflect.Type) reflect.Value {
-	value := ctx.RequireInterface(index)
-	if value == nil {
-		return reflect.Zero(t)
+	if proxy := ctx.GetProxy(index); proxy != nil {
+		return reflect.ValueOf(proxy)
 	}
 
-	value = castNumberToGoType(t.Kind(), value)
-	return reflect.ValueOf(value)
-}
-
-func (ctx *Context) RequireInterface(index int) interface{} {
-	var value interface{}
-
-	switch ctx.GetType(index) {
-	case goduktape.TypeString:
-		value = ctx.RequireString(index)
-	case goduktape.TypeNumber:
-		value = ctx.RequireNumber(index)
-	case goduktape.TypeBoolean:
-		value = ctx.RequireBoolean(index)
-	case goduktape.TypeObject:
-		value = ctx.GetProxy(index)
-
-		if value == nil {
-			if ctx.IsArray(index) {
-				value = ctx.RequireSlice(index)
-			} else {
-				value = ctx.RequireMap(index)
-			}
-		}
-
-	case goduktape.TypePointer:
-		value = ctx.GetPointer(-1)
-	case goduktape.TypeNull, goduktape.TypeUndefined, goduktape.TypeNone:
-		value = nil
-	default:
-		value = "undefined"
-	}
-
-	return value
+	return ctx.getValueUsingJson(index, t)
 }
 
 func (ctx *Context) GetProxy(index int) interface{} {
+	if !ctx.IsObject(index) {
+		return nil
+	}
+
 	ptr := ctx.getProxyPtrProp(index)
 	if ptr == nil {
 		return nil
@@ -308,36 +279,20 @@ func (ctx *Context) getProxyPtrProp(index int) unsafe.Pointer {
 	return ctx.GetPointer(-1)
 }
 
-func (ctx *Context) RequireSlice(index int) []interface{} {
-	s := make([]interface{}, 0)
-	var i uint
-	for ctx.GetPropIndex(index, i) {
-		i++
-		s = append(s, ctx.RequireInterface(-1))
+func (ctx *Context) getValueUsingJson(index int, t reflect.Type) reflect.Value {
+	v := reflect.New(t).Interface()
+
+	js := ctx.JsonEncode(index)
+	if len(js) == 0 {
+		return reflect.Zero(t)
 	}
 
-	return s
-}
-
-func (ctx *Context) RequireMap(index int) map[string]interface{} {
-	m := make(map[string]interface{}, 0)
-
-	if !ctx.IsObject(index) {
-		return m
+	err := json.Unmarshal([]byte(js), v)
+	if err != nil {
+		panic(err)
 	}
 
-	ctx.Enum(index, goduktape.EnumOwnPropertiesOnly|goduktape.NoProxyBehavior)
-	for ctx.IsObject(-1) {
-		if !ctx.Next(-1, true) {
-			break
-		}
-
-		m[ctx.RequireString(-2)] = ctx.RequireInterface(-1)
-		ctx.Pop2()
-	}
-
-	ctx.Pop()
-	return m
+	return reflect.ValueOf(v).Elem()
 }
 
 func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
@@ -393,37 +348,4 @@ func (ctx *Context) PushGoError(err error) {
 
 func lowerCapital(name string) string {
 	return strings.ToLower(name[:1]) + name[1:]
-}
-
-func castNumberToGoType(k reflect.Kind, v interface{}) interface{} {
-	if v == nil {
-		return nil
-	}
-
-	switch k {
-	case reflect.Int:
-		v = int(v.(float64))
-	case reflect.Int8:
-		v = int8(v.(float64))
-	case reflect.Int16:
-		v = int16(v.(float64))
-	case reflect.Int32:
-		v = int32(v.(float64))
-	case reflect.Int64:
-		v = int64(v.(float64))
-	case reflect.Uint:
-		v = uint(v.(float64))
-	case reflect.Uint8:
-		v = uint8(v.(float64))
-	case reflect.Uint16:
-		v = uint16(v.(float64))
-	case reflect.Uint32:
-		v = uint32(v.(float64))
-	case reflect.Uint64:
-		v = uint64(v.(float64))
-	case reflect.Float32:
-		v = float32(v.(float64))
-	}
-
-	return v
 }

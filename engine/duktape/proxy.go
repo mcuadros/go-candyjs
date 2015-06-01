@@ -133,3 +133,36 @@ func (p *proxy) getMethod(key string, v reflect.Value) (reflect.Value, bool) {
 
 	return r, r.IsValid()
 }
+
+func castNumberToGoType(k reflect.Kind, v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	switch k {
+	case reflect.Int:
+		v = int(v.(float64))
+	case reflect.Int8:
+		v = int8(v.(float64))
+	case reflect.Int16:
+		v = int16(v.(float64))
+	case reflect.Int32:
+		v = int32(v.(float64))
+	case reflect.Int64:
+		v = int64(v.(float64))
+	case reflect.Uint:
+		v = uint(v.(float64))
+	case reflect.Uint8:
+		v = uint8(v.(float64))
+	case reflect.Uint16:
+		v = uint16(v.(float64))
+	case reflect.Uint32:
+		v = uint32(v.(float64))
+	case reflect.Uint64:
+		v = uint64(v.(float64))
+	case reflect.Float32:
+		v = float32(v.(float64))
+	}
+
+	return v
+}
