@@ -128,8 +128,13 @@ func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) e
 func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) {
 	mCount := t.NumMethod()
 	for i := 0; i < mCount; i++ {
+		methodName := lowerCapital(t.Method(i).Name)
+		if methodName == t.Method(i).Name {
+			continue
+		}
+
 		ctx.PushGoFunction(v.Method(i).Interface())
-		ctx.PutPropString(obj, lowerCapital(t.Method(i).Name))
+		ctx.PutPropString(obj, methodName)
 	}
 }
 

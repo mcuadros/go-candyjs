@@ -15,29 +15,51 @@ func (s *CandySuite) TestProxy_Get(c *C) {
 }
 
 func (s *CandySuite) TestProxy_Set(c *C) {
-	t := &MyStruct{Int: 21}
 
-	setted, err := p.set(t, "int", 42.0, nil)
+	providers := [][]interface{}{
+		{"int", nil, 0},
+		{"int", 42.0, 42},
+		{"int8", 42.0, int8(42)},
+		{"int16", 42.0, int16(42)},
+		{"int32", 42.0, int32(42)},
+		{"int64", 42.0, int64(42)},
+		{"uInt", 42.0, uint(42)},
+		{"uInt8", 42.0, uint8(42)},
+		{"uInt16", 42.0, uint16(42)},
+		{"uInt32", 42.0, uint32(42)},
+		{"uInt64", 42.0, uint64(42)},
+		{"float32", 42.0, float32(42)},
+	}
+
+	for _, p := range providers {
+		s.testProxy_Set(c, p[0], p[1], p[2])
+	}
+}
+
+func (s *CandySuite) testProxy_Set(c *C, key, set, get interface{}) {
+	t := &MyStruct{}
+
+	setted, err := p.set(t, key.(string), set, nil)
 	c.Assert(err, IsNil)
 	c.Assert(setted, Equals, true)
 
-	v, err := p.get(t, "int", nil)
+	v, err := p.get(t, key.(string), nil)
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, 42)
+	c.Assert(v, Equals, get)
 }
 
 func (s *CandySuite) TestProxy_Enumerate(c *C) {
 	keys, err := p.enumerate(&MyStruct{Int: 42})
 	c.Assert(err, IsNil)
-	c.Assert(
-		keys,
-		DeepEquals,
-		[]string{"int", "float64", "empty", "nested", "foo", "multiply", "string"},
-	)
+	c.Assert(keys, DeepEquals, []string{
+		"bool", "int", "int8", "int16", "int32", "int64", "uInt", "uInt8",
+		"uInt16", "uInt32", "uInt64", "string", "bytes", "float32", "float64",
+		"empty", "nested", "slice", "multiply",
+	})
 }
 
 func (s *CandySuite) TestProxy_SetOnFunction(c *C) {
-	setted, err := p.set(&MyStruct{Int: 21}, "string", 42.0, nil)
+	setted, err := p.set(&MyStruct{Int: 21}, "multiply", 42.0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(setted, Equals, false)
 }

@@ -94,13 +94,12 @@ func (s *CandySuite) TestPushGlobalProxy_Nested(c *C) {
 
 	c.Assert(s.ctx.PevalString(`store([
 		test.int,
-      	test.string(),
 	    test.multiply(2),
 	    test.nested.int,
 	    test.nested.multiply(3)
 	])`), IsNil)
 
-	c.Assert(s.stored, DeepEquals, []interface{}{42.0, "qux", 84.0, 21.0, 63.0})
+	c.Assert(s.stored, DeepEquals, []interface{}{42.0, 84.0, 21.0, 63.0})
 }
 
 func (s *CandySuite) TestPushGlobalProxy_Integration(c *C) {
@@ -123,13 +122,12 @@ func (s *CandySuite) TestPushGlobalStruct(c *C) {
 
 	c.Assert(s.ctx.PevalString(`store([
 		test.int,
-		test.string(),
 		test.multiply(2),
 		test.nested.int,
 		test.nested.multiply(3)
 	])`), IsNil)
 
-	c.Assert(s.stored, DeepEquals, []interface{}{42.0, "qux", 84.0, 21.0, 63.0})
+	c.Assert(s.stored, DeepEquals, []interface{}{42.0, 84.0, 21.0, 63.0})
 }
 
 func (s *CandySuite) TestPushGlobalValueInt(c *C) {
@@ -348,6 +346,17 @@ func (s *CandySuite) TestPushGlobalGoFunction_Variadic(c *C) {
 	c.Assert(calledB, DeepEquals, []int{21, 42})
 }
 
+func (s *CandySuite) TestPushGlobalGoFunction_ReturnMultiple(c *C) {
+	s.ctx.PushGlobalGoFunction("test", func() (int, int, error) {
+		return 2, 4, nil
+	})
+
+	c.Assert(s.ctx.PevalString("store(test())"), IsNil)
+	c.Assert(s.stored, HasLen, 2)
+	c.Assert(s.stored.([]interface{})[0], Equals, 2.0)
+	c.Assert(s.stored.([]interface{})[1], Equals, 4.0)
+}
+
 func (s *CandySuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
 	s.ctx.PushGlobalGoFunction("test", func() *MyStruct {
 		return &MyStruct{Int: 42}
@@ -377,17 +386,31 @@ func (s *CandySuite) TearDownTest(c *C) {
 }
 
 type MyStruct struct {
+	Bool    bool
 	Int     int
+	Int8    int8
+	Int16   int16
+	Int32   int32
+	Int64   int64
+	UInt    uint
+	UInt8   uint8
+	UInt16  uint16
+	UInt32  uint32
+	UInt64  uint64
+	String  string
+	Bytes   []byte
+	Float32 float32
 	Float64 float64
 	Empty   *MyStruct
 	Nested  *MyStruct
-	Foo     []int
-}
-
-func (m *MyStruct) String() string {
-	return "qux"
+	Slice   []int
+	private int
 }
 
 func (m *MyStruct) Multiply(x int) int {
 	return m.Int * x
+}
+
+func (m *MyStruct) privateMethod() int {
+	return 1
 }
