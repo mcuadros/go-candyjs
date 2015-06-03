@@ -12,14 +12,14 @@ import (
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
-type DuktapeSuite struct {
+type CandySuite struct {
 	ctx    *Context
 	stored interface{}
 }
 
-var _ = Suite(&DuktapeSuite{})
+var _ = Suite(&CandySuite{})
 
-func (s *DuktapeSuite) SetUpTest(c *C) {
+func (s *CandySuite) SetUpTest(c *C) {
 	s.ctx = NewContext()
 	s.stored = nil
 	s.ctx.PushGlobalGoFunction("store", func(value interface{}) {
@@ -27,7 +27,7 @@ func (s *DuktapeSuite) SetUpTest(c *C) {
 	})
 }
 
-func (s *DuktapeSuite) TestSetRequireFunction(c *C) {
+func (s *CandySuite) TestSetRequireFunction(c *C) {
 	s.ctx.SetRequireFunction(func(id string, a ...interface{}) string {
 		return fmt.Sprintf(`exports.store = function () { store("%s"); };`, id)
 	})
@@ -36,48 +36,10 @@ func (s *DuktapeSuite) TestSetRequireFunction(c *C) {
 	c.Assert(s.stored, Equals, "foo")
 }
 
-func (s *DuktapeSuite) TestProxyGlobalInterface_Integration(c *C) {
-	now := time.Now()
-	after := now.Add(time.Millisecond)
-
-	s.ctx.ProxyGlobalInterface("a", now)
-	s.ctx.ProxyGlobalInterface("b", after)
-
-	s.ctx.PevalString(`store(b.sub(a))`)
-	c.Assert(s.stored, Equals, 1000000.0)
-}
-
-func (s *DuktapeSuite) TestProxyGlobalInterface_GetMap(c *C) {
-	s.ctx.ProxyGlobalInterface("test", &map[string]int{"foo": 42})
-
-	s.ctx.PevalString(`store(test.foo)`)
-	c.Assert(s.stored, Equals, 42.0)
-}
-
-func (s *DuktapeSuite) TestProxyGlobalInterface_GetPtr(c *C) {
-	s.ctx.ProxyGlobalInterface("test", &MyStruct{Int: 42})
-
-	s.ctx.PevalString(`store(test.int)`)
-	c.Assert(s.stored, Equals, 42.0)
-
-	s.ctx.PevalString(`try { x = test.baz; } catch(err) { store(true); }`)
-	c.Assert(s.stored, Equals, true)
-}
-
-func (s *DuktapeSuite) TestProxyGlobalInterface_Set(c *C) {
-	s.ctx.ProxyGlobalInterface("test", &MyStruct{Int: 42})
-
-	s.ctx.PevalString(`test.int = 21; store(test.int)`)
-	c.Assert(s.stored, Equals, 21.0)
-
-	s.ctx.PevalString(`try { test.baz = 21; } catch(err) { store(true); }`)
-	c.Assert(s.stored, Equals, true)
-}
-
-func (s *DuktapeSuite) TestProxyGlobalInterface(c *C) {
+func (s *CandySuite) TestPushProxy(c *C) {
 	s.ctx.PushGlobalObject()
 	s.ctx.PushObject()
-	s.ctx.ProxyInterface(&MyStruct{Int: 142})
+	s.ctx.PushProxy(&MyStruct{Int: 142})
 	s.ctx.PutPropString(-2, "obj")
 	s.ctx.PutPropString(-2, "foo")
 	s.ctx.Pop()
@@ -87,8 +49,35 @@ func (s *DuktapeSuite) TestProxyGlobalInterface(c *C) {
 	c.Assert(s.stored, Equals, 142.0)
 }
 
-func (s *DuktapeSuite) TestProxyGlobalInterface_Has(c *C) {
-	s.ctx.ProxyGlobalInterface("test", &MyStruct{})
+func (s *CandySuite) TestPushGlobalProxy_GetMap(c *C) {
+	s.ctx.PushGlobalProxy("test", &map[string]int{"foo": 42})
+
+	s.ctx.PevalString(`store(test.foo)`)
+	c.Assert(s.stored, Equals, 42.0)
+}
+
+func (s *CandySuite) TestPushGlobalProxy_GetPtr(c *C) {
+	s.ctx.PushGlobalProxy("test", &MyStruct{Int: 42})
+
+	s.ctx.PevalString(`store(test.int)`)
+	c.Assert(s.stored, Equals, 42.0)
+
+	s.ctx.PevalString(`try { x = test.baz; } catch(err) { store(true); }`)
+	c.Assert(s.stored, Equals, true)
+}
+
+func (s *CandySuite) TestPushGlobalProxy_Set(c *C) {
+	s.ctx.PushGlobalProxy("test", &MyStruct{Int: 42})
+
+	s.ctx.PevalString(`test.int = 21; store(test.int)`)
+	c.Assert(s.stored, Equals, 21.0)
+
+	s.ctx.PevalString(`try { test.baz = 21; } catch(err) { store(true); }`)
+	c.Assert(s.stored, Equals, true)
+}
+
+func (s *CandySuite) TestPushGlobalProxy_Has(c *C) {
+	s.ctx.PushGlobalProxy("test", &MyStruct{})
 	s.ctx.PevalString(`store("int" in test)`)
 	c.Assert(s.stored, Equals, true)
 
@@ -96,8 +85,8 @@ func (s *DuktapeSuite) TestProxyGlobalInterface_Has(c *C) {
 	c.Assert(s.stored, Equals, false)
 }
 
-func (s *DuktapeSuite) TestProxyGlobalInterface_Nested(c *C) {
-	s.ctx.ProxyGlobalInterface("test", &MyStruct{
+func (s *CandySuite) TestPushGlobalProxy_Nested(c *C) {
+	s.ctx.PushGlobalProxy("test", &MyStruct{
 		Int:     42,
 		Float64: 21.0,
 		Nested:  &MyStruct{Int: 21},
@@ -114,37 +103,48 @@ func (s *DuktapeSuite) TestProxyGlobalInterface_Nested(c *C) {
 	c.Assert(s.stored, DeepEquals, []interface{}{42.0, "qux", 84.0, 21.0, 63.0})
 }
 
-func (s *DuktapeSuite) TestPushGlobalValueInt(c *C) {
+func (s *CandySuite) TestPushGlobalProxy_Integration(c *C) {
+	now := time.Now()
+	after := now.Add(time.Millisecond)
+
+	s.ctx.PushGlobalProxy("a", now)
+	s.ctx.PushGlobalProxy("b", after)
+
+	s.ctx.PevalString(`store(b.sub(a))`)
+	c.Assert(s.stored, Equals, 1000000.0)
+}
+
+func (s *CandySuite) TestPushGlobalValueInt(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(42))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
-func (s *DuktapeSuite) TestPushGlobalValueFloat(c *C) {
+func (s *CandySuite) TestPushGlobalValueFloat(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(42.2))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, 42.2)
 }
 
-func (s *DuktapeSuite) TestPushGlobalValueString(c *C) {
+func (s *CandySuite) TestPushGlobalValueString(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf("foo"))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, "foo")
 }
 
-func (s *DuktapeSuite) TestPushGlobalValueStruct(c *C) {
+func (s *CandySuite) TestPushGlobalValueStruct(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(MyStruct{Int: 42}))
 	c.Assert(s.ctx.PevalString(`store(test.int)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
-func (s *DuktapeSuite) TestPushGlobalValueStructPtr(c *C) {
+func (s *CandySuite) TestPushGlobalValueStructPtr(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(&MyStruct{Int: 42}))
 	c.Assert(s.ctx.PevalString(`store(test.int)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
-func (s *DuktapeSuite) TestPushGlobalValues(c *C) {
+func (s *CandySuite) TestPushGlobalValues(c *C) {
 	s.ctx.PushGlobalValues("test", []reflect.Value{
 		reflect.ValueOf("foo"), reflect.ValueOf("qux"),
 	})
@@ -153,7 +153,7 @@ func (s *DuktapeSuite) TestPushGlobalValues(c *C) {
 	c.Assert(s.stored, DeepEquals, []interface{}{"foo", "qux"})
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_String(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_String(c *C) {
 	var called interface{}
 	s.ctx.PushGlobalGoFunction("test_in_string", func(s string) {
 		called = s
@@ -163,7 +163,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_String(c *C) {
 	c.Assert(called, Equals, "foo")
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Int(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Int(c *C) {
 	var ri, ri8, ri16, ri32, ri64 interface{}
 	s.ctx.PushGlobalGoFunction("test_in_int", func(i int, i8 int8, i16 int16, i32 int32, i64 int64) {
 		ri = i
@@ -181,7 +181,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Int(c *C) {
 	c.Assert(ri64, Equals, int64(64))
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Uint(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Uint(c *C) {
 	var ri, ri8, ri16, ri32, ri64 interface{}
 	s.ctx.PushGlobalGoFunction("test_in_uint", func(i uint, i8 uint8, i16 uint16, i32 uint32, i64 uint64) {
 		ri = i
@@ -199,7 +199,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Uint(c *C) {
 	c.Assert(ri64, Equals, uint64(64))
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Float(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Float(c *C) {
 	var called64 interface{}
 	var called32 interface{}
 	s.ctx.PushGlobalGoFunction("test_in_float", func(f64 float64, f32 float32) {
@@ -212,7 +212,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Float(c *C) {
 	c.Assert(called32, Equals, float32(42.0))
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Bool(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Bool(c *C) {
 	var called interface{}
 	s.ctx.PushGlobalGoFunction("test_in_bool", func(b bool) {
 		called = b
@@ -222,7 +222,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Bool(c *C) {
 	c.Assert(called, Equals, true)
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Interface(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Interface(c *C) {
 	var called interface{}
 	s.ctx.PushGlobalGoFunction("test", func(i interface{}) {
 		called = i
@@ -232,7 +232,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Interface(c *C) {
 	c.Assert(called, Equals, "qux")
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Struct(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Struct(c *C) {
 	var called *MyStruct
 	s.ctx.PushGlobalGoFunction("test", func(m *MyStruct) {
 		called = m
@@ -242,7 +242,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Struct(c *C) {
 	c.Assert(called.Int, Equals, 42)
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Slice(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Slice(c *C) {
 	var called interface{}
 	s.ctx.PushGlobalGoFunction("test_in_slice", func(s []interface{}) {
 		called = s
@@ -252,7 +252,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Slice(c *C) {
 	c.Assert(called, DeepEquals, []interface{}{"foo", 42.0})
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Map(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Map(c *C) {
 	var called interface{}
 	s.ctx.PushGlobalGoFunction("test_in_map", func(s map[string]interface{}) {
 		called = s
@@ -266,7 +266,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Map(c *C) {
 	})
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Nil(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Nil(c *C) {
 	var cm, cs, ci, cst interface{}
 	s.ctx.PushGlobalGoFunction("test_nil", func(m map[string]interface{}, s []interface{}, i int, st string) {
 		cm = m
@@ -282,7 +282,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Nil(c *C) {
 	c.Assert(cst, DeepEquals, "")
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Optional(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Optional(c *C) {
 	var cm, cs, ci, cst interface{}
 	s.ctx.PushGlobalGoFunction("test_optional", func(m map[string]interface{}, s []interface{}, i int, st string) {
 		cm = m
@@ -298,7 +298,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Optional(c *C) {
 	c.Assert(cst, DeepEquals, "")
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Variadic(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Variadic(c *C) {
 	var calledA interface{}
 	var calledB interface{}
 	s.ctx.PushGlobalGoFunction("test_in_variadic", func(s string, is ...int) {
@@ -311,7 +311,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Variadic(c *C) {
 	c.Assert(calledB, DeepEquals, []int{21, 42})
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
 	s.ctx.PushGlobalGoFunction("test", func() *MyStruct {
 		return &MyStruct{Int: 42}
 	})
@@ -320,7 +320,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
 	c.Assert(s.stored, Equals, 126.0)
 }
 
-func (s *DuktapeSuite) TestPushGlobalGoFunction_Error(c *C) {
+func (s *CandySuite) TestPushGlobalGoFunction_Error(c *C) {
 	s.ctx.PushGlobalGoFunction("test", func() (string, error) {
 		return "foo", fmt.Errorf("foo")
 	})
@@ -335,7 +335,7 @@ func (s *DuktapeSuite) TestPushGlobalGoFunction_Error(c *C) {
 	c.Assert(s.stored, Equals, true)
 }
 
-func (s *DuktapeSuite) TearDownTest(c *C) {
+func (s *CandySuite) TearDownTest(c *C) {
 	s.ctx.DestroyHeap()
 }
 

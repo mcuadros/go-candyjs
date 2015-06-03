@@ -4,17 +4,17 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func (s *DuktapeSuite) TestProxy_Has(c *C) {
+func (s *CandySuite) TestProxy_Has(c *C) {
 	c.Assert(p.has(&MyStruct{Int: 42}, "int"), Equals, true)
 }
 
-func (s *DuktapeSuite) TestProxy_Get(c *C) {
+func (s *CandySuite) TestProxy_Get(c *C) {
 	v, err := p.get(&MyStruct{Int: 42}, "int", nil)
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, 42)
 }
 
-func (s *DuktapeSuite) TestProxy_Set(c *C) {
+func (s *CandySuite) TestProxy_Set(c *C) {
 	t := &MyStruct{Int: 21}
 
 	setted, err := p.set(t, "int", 42.0, nil)
@@ -26,7 +26,7 @@ func (s *DuktapeSuite) TestProxy_Set(c *C) {
 	c.Assert(v, Equals, 42)
 }
 
-func (s *DuktapeSuite) TestProxy_Enumerate(c *C) {
+func (s *CandySuite) TestProxy_Enumerate(c *C) {
 	keys, err := p.enumerate(&MyStruct{Int: 42})
 	c.Assert(err, IsNil)
 	c.Assert(
@@ -36,13 +36,13 @@ func (s *DuktapeSuite) TestProxy_Enumerate(c *C) {
 	)
 }
 
-func (s *DuktapeSuite) TestProxy_SetOnFunction(c *C) {
+func (s *CandySuite) TestProxy_SetOnFunction(c *C) {
 	setted, err := p.set(&MyStruct{Int: 21}, "string", 42.0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(setted, Equals, false)
 }
 
-func (s *DuktapeSuite) TestProxy_Properties(c *C) {
+func (s *CandySuite) TestProxy_Properties(c *C) {
 	provider := [][]interface{}{
 		{&MyStruct{Int: 32}, "int", 32},
 		{MyStruct{Int: 42}, "int", 42},
@@ -55,13 +55,13 @@ func (s *DuktapeSuite) TestProxy_Properties(c *C) {
 	}
 }
 
-func (s *DuktapeSuite) testProxyProperties(c *C, value, key, expected interface{}) {
+func (s *CandySuite) testProxyProperties(c *C, value, key, expected interface{}) {
 	val, err := p.get(value, key.(string), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, expected)
 }
 
-func (s *DuktapeSuite) TestProxy_Functions(c *C) {
+func (s *CandySuite) TestProxy_Functions(c *C) {
 	provider := [][]interface{}{
 		{&MyStruct{}, "string"},
 		{&customMap{}, "functionWithPtr"},
@@ -74,7 +74,7 @@ func (s *DuktapeSuite) TestProxy_Functions(c *C) {
 	}
 }
 
-func (s *DuktapeSuite) testProxyFunction(c *C, value, key interface{}) {
+func (s *CandySuite) testProxyFunction(c *C, value, key interface{}) {
 	val, err := p.get(value, key.(string), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, NotNil)

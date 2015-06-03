@@ -33,16 +33,16 @@ func (ctx *Context) SetRequireFunction(f interface{}) int {
 	return idx
 }
 
-func (ctx *Context) ProxyGlobalInterface(name string, s interface{}) int {
+func (ctx *Context) PushGlobalProxy(name string, s interface{}) int {
 	ctx.PushGlobalObject()
-	obj := ctx.ProxyInterface(s)
+	obj := ctx.PushProxy(s)
 	ctx.PutPropString(-2, name)
 	ctx.Pop()
 
 	return obj
 }
 
-func (ctx *Context) ProxyInterface(s interface{}) int {
+func (ctx *Context) PushProxy(s interface{}) int {
 	ptr := ctx.storage.add(s)
 
 	obj := ctx.PushObject()
@@ -160,12 +160,12 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 	case reflect.String:
 		ctx.PushString(v.String())
 	case reflect.Struct:
-		ctx.ProxyInterface(v.Interface())
+		ctx.PushProxy(v.Interface())
 	case reflect.Func:
 		ctx.PushGoFunction(v.Interface())
 	case reflect.Ptr:
 		if v.Elem().Kind() == reflect.Struct {
-			ctx.ProxyInterface(v.Interface())
+			ctx.PushProxy(v.Interface())
 			return nil
 		}
 
