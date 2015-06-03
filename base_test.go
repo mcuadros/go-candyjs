@@ -114,8 +114,32 @@ func (s *CandySuite) TestPushGlobalProxy_Integration(c *C) {
 	c.Assert(s.stored, Equals, 1000000.0)
 }
 
+func (s *CandySuite) TestPushGlobalStruct(c *C) {
+	s.ctx.PushGlobalStruct("test", &MyStruct{
+		Int:     42,
+		Float64: 21.0,
+		Nested:  &MyStruct{Int: 21},
+	})
+
+	c.Assert(s.ctx.PevalString(`store([
+		test.int,
+		test.string(),
+		test.multiply(2),
+		test.nested.int,
+		test.nested.multiply(3)
+	])`), IsNil)
+
+	c.Assert(s.stored, DeepEquals, []interface{}{42.0, "qux", 84.0, 21.0, 63.0})
+}
+
 func (s *CandySuite) TestPushGlobalValueInt(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(42))
+	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
+	c.Assert(s.stored, Equals, 42.0)
+}
+
+func (s *CandySuite) TestPushGlobalValueUint(c *C) {
+	s.ctx.PushGlobalValue("test", reflect.ValueOf(uint(42)))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
@@ -142,6 +166,19 @@ func (s *CandySuite) TestPushGlobalValueStructPtr(c *C) {
 	s.ctx.PushGlobalValue("test", reflect.ValueOf(&MyStruct{Int: 42}))
 	c.Assert(s.ctx.PevalString(`store(test.int)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
+}
+
+func (s *CandySuite) TestPushGlobalValueNil(c *C) {
+	s.ctx.PushGlobalValue("test", reflect.ValueOf(nil))
+	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
+	c.Assert(s.stored, Equals, nil)
+}
+
+func (s *CandySuite) TestPushGlobalValueStringPtr(c *C) {
+	foo := "foo"
+	s.ctx.PushGlobalValue("test", reflect.ValueOf(&foo))
+	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
+	c.Assert(s.stored, Equals, "foo")
 }
 
 func (s *CandySuite) TestPushGlobalValues(c *C) {
