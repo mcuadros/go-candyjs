@@ -1,4 +1,4 @@
-package duktape
+package candyjs
 
 import (
 	"encoding/json"
@@ -6,18 +6,18 @@ import (
 	"strings"
 	"unsafe"
 
-	goduktape "github.com/olebedev/go-duktape"
+	"github.com/olebedev/go-duktape"
 )
 
 const goProxyPtrProp = "\xff" + "goProxyPtrProp"
 
 type Context struct {
 	storage *storage
-	*goduktape.Context
+	*duktape.Context
 }
 
 func NewContext() *Context {
-	ctx := &Context{Context: goduktape.New()}
+	ctx := &Context{Context: duktape.New()}
 	ctx.storage = newStorage()
 
 	return ctx
@@ -211,9 +211,9 @@ func (ctx *Context) PushGoFunction(f interface{}) int {
 	return ctx.Context.PushGoFunction(ctx.wrapFunction(f))
 }
 
-func (ctx *Context) wrapFunction(f interface{}) func(ctx *goduktape.Context) int {
+func (ctx *Context) wrapFunction(f interface{}) func(ctx *duktape.Context) int {
 	tbaContext := ctx
-	return func(ctx *goduktape.Context) int {
+	return func(ctx *duktape.Context) int {
 		args := tbaContext.getFunctionArgs(f)
 		return tbaContext.callFunction(f, args)
 	}
@@ -302,7 +302,7 @@ func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
 
 	if err != nil {
 		ctx.PushGoError(err)
-		return goduktape.ErrRetError
+		return duktape.ErrRetError
 	}
 
 	if len(out) == 0 {
@@ -317,7 +317,7 @@ func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
 
 	if err != nil {
 		ctx.PushGoError(err)
-		return goduktape.ErrRetInternal
+		return duktape.ErrRetInternal
 	}
 
 	return 1

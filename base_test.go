@@ -1,4 +1,4 @@
-package duktape
+package candyjs
 
 import (
 	"fmt"

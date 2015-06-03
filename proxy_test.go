@@ -1,4 +1,4 @@
-package duktape
+package candyjs
 
 import (
 	. "gopkg.in/check.v1"
