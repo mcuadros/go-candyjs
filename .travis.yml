@@ -11,5 +11,8 @@ before_install:
   - go get github.com/mattn/goveralls
   - if ! go get code.google.com/p/go.tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
 
+install:
+  - go get -t -v .
+
 script:
   - $HOME/gopath/bin/goveralls -service=travis-ci -repotoken SqnLMhRchxNSACLBzBPS12uSxaN8fz6fD
