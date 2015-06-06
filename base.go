@@ -19,8 +19,29 @@ type Context struct {
 func NewContext() *Context {
 	ctx := &Context{Context: duktape.New()}
 	ctx.storage = newStorage()
+	ctx.pushGlobalCandyJSObject()
 
 	return ctx
+}
+
+func (ctx *Context) pushGlobalCandyJSObject() {
+	ctx.PushGlobalObject()
+	ctx.PushObject()
+	ctx.PushObject()
+	ctx.PutPropString(-2, "_functions")
+	ctx.PutPropString(-2, "CandyJS")
+	ctx.Pop()
+
+	ctx.EvalString(`CandyJS._call = function(ptr, args) {
+		return CandyJS._functions[ptr].apply(null, args)
+	}`)
+
+	ctx.EvalString(`CandyJS.proxy = function(func) {
+		ptr = Duktape.Pointer(func);
+		CandyJS._functions[ptr] = func;
+
+		return ptr;
+	}`)
 }
 
 func (ctx *Context) SetRequireFunction(f interface{}) int {
@@ -258,6 +279,10 @@ func (ctx *Context) getValueFromContext(index int, t reflect.Type) reflect.Value
 		return reflect.ValueOf(proxy)
 	}
 
+	if ctx.IsPointer(index) {
+		return ctx.getFunction(index, t)
+	}
+
 	return ctx.getValueUsingJson(index, t)
 }
 
@@ -272,6 +297,41 @@ func (ctx *Context) GetProxy(index int) interface{} {
 	}
 
 	return ctx.storage.get(ptr)
+}
+
+func (ctx *Context) getFunction(index int, t reflect.Type) reflect.Value {
+	ptr := ctx.GetPointer(index)
+
+	return reflect.MakeFunc(t, ctx.wrapDuktapePointer(ptr, t))
+}
+
+func (ctx *Context) wrapDuktapePointer(
+	ptr unsafe.Pointer,
+	t reflect.Type,
+) func(in []reflect.Value) []reflect.Value {
+	return func(in []reflect.Value) []reflect.Value {
+		ctx.PushGlobalObject()
+		ctx.GetPropString(-1, "CandyJS")
+		obj := ctx.NormalizeIndex(-1)
+		ctx.PushString("_call")
+		ctx.PushPointer(ptr)
+		ctx.PushValues(in)
+		ctx.CallProp(obj, 2)
+
+		return ctx.getCallResult(t)
+	}
+}
+
+func (ctx *Context) getCallResult(t reflect.Type) []reflect.Value {
+	result := make([]reflect.Value, 0)
+
+	oCount := t.NumOut()
+	if oCount == 1 {
+		result = append(result, ctx.getValueFromContext(-1, t.Out(0)))
+		return result
+	}
+
+	return result
 }
 
 func (ctx *Context) getProxyPtrProp(index int) unsafe.Pointer {

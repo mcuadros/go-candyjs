@@ -366,6 +366,18 @@ func (s *CandySuite) TestPushGlobalGoFunction_ReturnStruct(c *C) {
 	c.Assert(s.stored, Equals, 126.0)
 }
 
+func (s *CandySuite) TestPushGlobalGoFunction_Function(c *C) {
+	s.ctx.PushGlobalGoFunction("test", func(fn func(int, int) int) {
+		s.stored = fn
+	})
+
+	c.Assert(s.ctx.PevalString(`
+		test(CandyJS.proxy(function(a, b) { return a * b; }));
+	`), IsNil)
+
+	c.Assert(s.stored.(func(int, int) int)(10, 5), Equals, 50)
+}
+
 func (s *CandySuite) TestPushGlobalGoFunction_Error(c *C) {
 	s.ctx.PushGlobalGoFunction("test", func() (string, error) {
 		return "foo", fmt.Errorf("foo")
