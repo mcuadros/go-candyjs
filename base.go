@@ -54,6 +54,22 @@ func (ctx *Context) SetRequireFunction(f interface{}) int {
 	return idx
 }
 
+func (ctx *Context) PushGlobalType(name string, s interface{}) int {
+	ctx.PushGlobalObject()
+	cons := ctx.PushType(s)
+	ctx.PutPropString(-2, name)
+	ctx.Pop()
+
+	return cons
+}
+
+func (ctx *Context) PushType(s interface{}) int {
+	return ctx.PushGoFunction(func() {
+		value := reflect.New(reflect.TypeOf(s))
+		ctx.PushProxy(value.Interface())
+	})
+}
+
 func (ctx *Context) PushGlobalProxy(name string, s interface{}) int {
 	ctx.PushGlobalObject()
 	obj := ctx.PushProxy(s)

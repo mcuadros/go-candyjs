@@ -36,6 +36,35 @@ func (s *CandySuite) TestSetRequireFunction(c *C) {
 	c.Assert(s.stored, Equals, "foo")
 }
 
+func (s *CandySuite) TestPushType(c *C) {
+	s.ctx.PushGlobalObject()
+	s.ctx.PushObject()
+	s.ctx.PushType(MyStruct{})
+	s.ctx.PutPropString(-2, "MyStruct")
+	s.ctx.PutPropString(-2, "foo")
+	s.ctx.Pop()
+
+	c.Assert(s.ctx.PevalString(`
+		obj = new foo.MyStruct()
+		obj.int = 42
+		store(obj)
+	`), IsNil)
+
+	c.Assert(s.stored.(*MyStruct).Int, Equals, 42)
+}
+
+func (s *CandySuite) TestGlobalPushType(c *C) {
+	s.ctx.PushGlobalType("MyStruct", MyStruct{})
+
+	c.Assert(s.ctx.PevalString(`
+		obj = new MyStruct()
+		obj.int = 42
+		store(obj)
+	`), IsNil)
+
+	c.Assert(s.stored.(*MyStruct).Int, Equals, 42)
+}
+
 func (s *CandySuite) TestPushProxy(c *C) {
 	s.ctx.PushGlobalObject()
 	s.ctx.PushObject()
