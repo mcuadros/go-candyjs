@@ -7,8 +7,6 @@ import (
 	"github.com/mcuadros/go-candyjs"
 )
 
-//go generate importjs fmt
-//go generate importjs net/http
 func main() {
 	ctx := candyjs.NewContext()
 	ctx.PushGlobalGoFunction("handleFunc", http.HandleFunc)
