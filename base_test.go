@@ -375,6 +375,19 @@ func (s *CandySuite) TestPushGlobalGoFunction_Variadic(c *C) {
 	c.Assert(calledB, DeepEquals, []int{21, 42})
 }
 
+func (s *CandySuite) TestPushGlobalGoFunction_EmptyVariadic(c *C) {
+	var calledA interface{}
+	var calledB interface{}
+	s.ctx.PushGlobalGoFunction("test_in_variadic", func(s string, is ...int) {
+		calledA = s
+		calledB = is
+	})
+
+	s.ctx.EvalString("test_in_variadic('foo')")
+	c.Assert(calledA, DeepEquals, "foo")
+	c.Assert(calledB, DeepEquals, []int{})
+}
+
 func (s *CandySuite) TestPushGlobalGoFunction_ReturnMultiple(c *C) {
 	s.ctx.PushGlobalGoFunction("test", func() (int, int, error) {
 		return 2, 4, nil

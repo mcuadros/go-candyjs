@@ -283,6 +283,11 @@ func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
 	argc := len(args)
 	if inCount > argc {
 		for i := argc; i < inCount; i++ {
+			//Avoid send empty slice when variadic
+			if isVariadic && i-1 < inCount {
+				break
+			}
+
 			args = append(args, reflect.Zero(def.In(i)))
 		}
 	}
