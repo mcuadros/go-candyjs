@@ -193,10 +193,14 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 		return ctx.PushValue(v.Elem())
 	case reflect.Bool:
 		ctx.PushBoolean(v.Bool())
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
 		ctx.PushInt(int(v.Int()))
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		ctx.PushInt(int(v.Uint()))
+	case reflect.Int64: //Caveat: lose of precession casting to float64
+		ctx.PushNumber(float64(v.Int()))
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		ctx.PushUint(uint(v.Uint()))
+	case reflect.Uint64: //Caveat: lose of precession casting to float64
+		ctx.PushNumber(float64(v.Uint()))
 	case reflect.Float64:
 		ctx.PushNumber(v.Float())
 	case reflect.String:
