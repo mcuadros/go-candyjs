@@ -57,6 +57,7 @@ func (ctx *Context) SetRequireFunction(f interface{}) int {
 	return idx
 }
 
+// PushGlobalType like PushType but pushed to the global object
 func (ctx *Context) PushGlobalType(name string, s interface{}) int {
 	ctx.PushGlobalObject()
 	cons := ctx.PushType(s)
@@ -66,6 +67,9 @@ func (ctx *Context) PushGlobalType(name string, s interface{}) int {
 	return cons
 }
 
+// PushType push a constructor for the type of the given value, this constructor
+// returns an empty instance of the type. The value passed is discarded, only
+// is used for retrieve the time, instead of require pass a `reflect.Type`.
 func (ctx *Context) PushType(s interface{}) int {
 	return ctx.PushGoFunction(func() {
 		value := reflect.New(reflect.TypeOf(s))
@@ -73,17 +77,22 @@ func (ctx *Context) PushType(s interface{}) int {
 	})
 }
 
-func (ctx *Context) PushGlobalProxy(name string, s interface{}) int {
+// PushGlobalProxy like PushProxy but pushed to the global object
+func (ctx *Context) PushGlobalProxy(name string, v interface{}) int {
 	ctx.PushGlobalObject()
-	obj := ctx.PushProxy(s)
+	obj := ctx.PushProxy(v)
 	ctx.PutPropString(-2, name)
 	ctx.Pop()
 
 	return obj
 }
 
-func (ctx *Context) PushProxy(s interface{}) int {
-	ptr := ctx.storage.add(s)
+// PushProxy push a proxified pointer of the given value to the stack, this
+// refence will be stored on an internal storage. The pushed objects has
+// the exact same methods and properties from the original value.
+// http://duktape.org/guide.html#virtualization-proxy-object
+func (ctx *Context) PushProxy(v interface{}) int {
+	ptr := ctx.storage.add(v)
 
 	obj := ctx.PushObject()
 	ctx.PushPointer(ptr)
@@ -115,6 +124,7 @@ func (ctx *Context) PushProxy(s interface{}) int {
 	return obj
 }
 
+// PushGlobalStruct like PushStruct but pushed to the global object
 func (ctx *Context) PushGlobalStruct(name string, s interface{}) (int, error) {
 	ctx.PushGlobalObject()
 	obj, err := ctx.PushStruct(s)
@@ -128,6 +138,9 @@ func (ctx *Context) PushGlobalStruct(name string, s interface{}) (int, error) {
 	return obj, nil
 }
 
+// PushStruct push a object to the stack with the same methods and properties
+// the pushed object is a copy, any change made on JS is not reflected on the
+// Go instance.
 func (ctx *Context) PushStruct(s interface{}) (int, error) {
 	t := reflect.TypeOf(s)
 	v := reflect.ValueOf(s)
@@ -179,10 +192,26 @@ func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) 
 	}
 }
 
+// PushGlobalInterface like PushInterface but pushed to the global object
 func (ctx *Context) PushGlobalInterface(name string, v interface{}) error {
 	return ctx.PushGlobalValue(name, reflect.ValueOf(v))
 }
 
+// PushInterface push any type of value to the stack, the following types are
+// supported:
+//  - Bool
+//  - Int, Int8, Int16, Int32, Uint, Uint8, Uint16, Uint32 and Uint64
+//  - Float32 and Float64
+//  - Strings and []byte
+//  - Structs
+//  - Functions with any signature
+//
+// Please read carefully the following notes:
+//  - The pointers are resolved and the value is pushed
+//  - Structs are pushed ussing PushProxy, if you want to make a copy use PushStruct
+//  - Int64 and UInt64 are supported but before push it to the stack are casted
+//    to float64
+//  - Any unsuported value is pushed as a null
 func (ctx *Context) PushInterface(v interface{}) error {
 	return ctx.PushValue(reflect.ValueOf(v))
 }
@@ -267,10 +296,27 @@ func (ctx *Context) PushValues(vs []reflect.Value) error {
 	return nil
 }
 
+// PushGlobalGoFunction like PushGoFunction but pushed to the global object
 func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) (int, error) {
 	return ctx.Context.PushGlobalGoFunction(name, ctx.wrapFunction(f))
 }
 
+// PushGoFunction push a native Go function of any signature to the stack.
+// A pointer to the function is stored in the internals of the context and
+// collected by the duktape GC removing any reference in Go also.
+//
+// The returns are handled in the following ways:
+//  - The result of functions with a single return value like `func() int` is
+//    pushed directly to the stack.
+//  - Functions with a n return values like `func() (int, int)` are pushed as
+//    an array. The errors are removed from this array.
+//  - Returns of functions with a trailling error like `func() (string, err)`:
+//    if err is not nil an error is throw in the context, and the other values
+//    are discarded. IF err is nil, the values are pushed to the stack, following
+//    the previuos rules.
+//
+// All the non erros returning values are pushed following the same rules of
+// `PushInterface` method
 func (ctx *Context) PushGoFunction(f interface{}) int {
 	return ctx.Context.PushGoFunction(ctx.wrapFunction(f))
 }
