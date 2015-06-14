@@ -234,6 +234,8 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 	case reflect.Slice:
 		if v.Type().Elem().Kind() == reflect.Uint8 {
 			ctx.PushString(string(v.Interface().([]byte)))
+		} else {
+			ctx.PushNull()
 		}
 	default:
 		//Returns nul if the Kind is not supported
