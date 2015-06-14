@@ -438,7 +438,16 @@ func (ctx *Context) getCallResult(t reflect.Type) []reflect.Value {
 	oCount := t.NumOut()
 	if oCount == 1 {
 		result = append(result, ctx.getValueFromContext(-1, t.Out(0)))
-		return result
+	} else if oCount > 1 {
+		if ctx.GetLength(-1) != oCount {
+			panic("Invalid count of return value on proxied function.")
+		}
+
+		idx := ctx.NormalizeIndex(-1)
+		for i := 0; i < oCount; i++ {
+			ctx.GetPropIndex(idx, uint(i))
+			result = append(result, ctx.getValueFromContext(-1, t.Out(i)))
+		}
 	}
 
 	return result

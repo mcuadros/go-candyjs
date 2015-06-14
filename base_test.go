@@ -27,6 +27,30 @@ func (s *CandySuite) SetUpTest(c *C) {
 	})
 }
 
+func (s *CandySuite) TestPushGlobalCandyJSObject(c *C) {
+	c.Assert(s.ctx.PevalString(`store(CandyJS._functions.toString())`), IsNil)
+	c.Assert(s.stored, Equals, "[object Object]")
+
+	c.Assert(s.ctx.PevalString(`store(CandyJS._call.toString())`), IsNil)
+	c.Assert(s.stored, Equals, "function anon() {/* ecmascript */}")
+
+	c.Assert(s.ctx.PevalString(`store(CandyJS.proxy.toString())`), IsNil)
+	c.Assert(s.stored, Equals, "function anon() {/* ecmascript */}")
+
+	c.Assert(s.ctx.PevalString(`store(CandyJS.require.toString())`), IsNil)
+	c.Assert(s.stored, Equals, "function anon() {/* native */}")
+}
+
+func (s *CandySuite) TestPushGlobalCandyJSObject_Require(c *C) {
+	fn := func(ctx *Context) {
+		ctx.PushString("qux")
+	}
+
+	RegisterPackagePusher("foo", fn)
+	c.Assert(s.ctx.PevalString(`store(CandyJS.require("foo"))`), IsNil)
+	c.Assert(s.stored, Equals, "qux")
+}
+
 func (s *CandySuite) TestSetRequireFunction(c *C) {
 	s.ctx.SetRequireFunction(func(id string, a ...interface{}) string {
 		return fmt.Sprintf(`exports.store = function () { store("%s"); };`, id)
@@ -140,6 +164,13 @@ func (s *CandySuite) TestPushGlobalProxy_Integration(c *C) {
 
 	s.ctx.PevalString(`store(b.sub(a))`)
 	c.Assert(s.stored, Equals, 1000000.0)
+}
+
+func (s *CandySuite) TestPushGlobalInterface(c *C) {
+	s.ctx.PushGlobalInterface("int", 42)
+
+	c.Assert(s.ctx.PevalString(`store(int)`), IsNil)
+	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *CandySuite) TestPushGlobalStruct(c *C) {
@@ -424,6 +455,20 @@ func (s *CandySuite) TestPushGlobalGoFunction_Function(c *C) {
 	`), IsNil)
 
 	c.Assert(s.stored.(func(int, int) int)(10, 5), Equals, 50)
+}
+
+func (s *CandySuite) TestPushGlobalGoFunction_FunctionMultiple(c *C) {
+	s.ctx.PushGlobalGoFunction("test", func(fn func(int, int) (int, int)) {
+		s.stored = fn
+	})
+
+	c.Assert(s.ctx.PevalString(`
+		test(CandyJS.proxy(function(a, b) { return [b, a]; }));
+	`), IsNil)
+
+	a, b := s.stored.(func(int, int) (int, int))(10, 5)
+	c.Assert(a, Equals, 5)
+	c.Assert(b, Equals, 10)
 }
 
 func (s *CandySuite) TestPushGlobalGoFunction_Error(c *C) {
