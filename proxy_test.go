@@ -6,6 +6,7 @@ import (
 
 func (s *CandySuite) TestProxy_Has(c *C) {
 	c.Assert(p.has(&MyStruct{Int: 42}, "int"), Equals, true)
+	c.Assert(p.has(&MyStruct{Int: 42}, "Int"), Equals, false)
 }
 
 func (s *CandySuite) TestProxy_Get(c *C) {

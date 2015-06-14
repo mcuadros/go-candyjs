@@ -3,7 +3,6 @@ package candyjs
 import (
 	"encoding/json"
 	"reflect"
-	"strings"
 	"unsafe"
 
 	"github.com/olebedev/go-duktape"
@@ -150,8 +149,8 @@ func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) e
 		value := v.Field(i)
 
 		if value.Kind() != reflect.Ptr || !value.IsNil() {
-			fieldName := lowerCapital(t.Field(i).Name)
-			if fieldName == t.Field(i).Name {
+			fieldName := t.Field(i).Name
+			if !isExported(fieldName) {
 				continue
 			}
 
@@ -159,7 +158,7 @@ func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) e
 				return err
 			}
 
-			ctx.PutPropString(obj, fieldName)
+			ctx.PutPropString(obj, nameToJavaScript(fieldName))
 		}
 	}
 
@@ -169,14 +168,13 @@ func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) e
 func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) {
 	mCount := t.NumMethod()
 	for i := 0; i < mCount; i++ {
-		methodName := lowerCapital(t.Method(i).Name)
-
-		if methodName == t.Method(i).Name {
+		methodName := t.Method(i).Name
+		if !isExported(methodName) {
 			continue
 		}
 
 		ctx.PushGoFunction(v.Method(i).Interface())
-		ctx.PutPropString(obj, methodName)
+		ctx.PutPropString(obj, nameToJavaScript(methodName))
 
 	}
 }
@@ -230,7 +228,6 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 		}
 
 		return ctx.PushValue(v.Elem())
-
 	case reflect.Slice:
 		if v.Type().Elem().Kind() == reflect.Uint8 {
 			ctx.PushString(string(v.Interface().([]byte)))
@@ -448,8 +445,4 @@ func (ctx *Context) handleReturnError(out []reflect.Value) ([]reflect.Value, err
 	}
 
 	return out, nil
-}
-
-func lowerCapital(name string) string {
-	return strings.ToLower(name[:1]) + name[1:]
 }

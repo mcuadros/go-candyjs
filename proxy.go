@@ -4,7 +4,6 @@ import "C"
 import (
 	"errors"
 	"reflect"
-	"strings"
 )
 
 var (
@@ -88,8 +87,13 @@ func (p *proxy) getValueFromKindPtr(key string, v reflect.Value) (reflect.Value,
 }
 
 func (p *proxy) getValueFromKindStruct(key string, v reflect.Value) (reflect.Value, bool) {
-	key = strings.Title(key)
-	r := v.FieldByName(key)
+	var r reflect.Value
+	for _, name := range nameToGo(key) {
+		r = v.FieldByName(name)
+		if r.IsValid() {
+			break
+		}
+	}
 
 	return r, r.IsValid()
 }
@@ -102,8 +106,13 @@ func (p *proxy) getValueFromKindMap(key string, v reflect.Value) (reflect.Value,
 }
 
 func (p *proxy) getMethod(key string, v reflect.Value) (reflect.Value, bool) {
-	key = strings.Title(key)
-	r := v.MethodByName(key)
+	var r reflect.Value
+	for _, name := range nameToGo(key) {
+		r = v.MethodByName(name)
+		if r.IsValid() {
+			break
+		}
+	}
 
 	return r, r.IsValid()
 }
@@ -126,23 +135,23 @@ func (p *proxy) getPropertyNames(t interface{}) ([]string, error) {
 	case reflect.Struct:
 		cFields := v.NumField()
 		for i := 0; i < cFields; i++ {
-			fieldName := lowerCapital(v.Type().Field(i).Name)
-			if fieldName == v.Type().Field(i).Name {
+			fieldName := v.Type().Field(i).Name
+			if !isExported(fieldName) {
 				continue
 			}
 
-			names = append(names, fieldName)
+			names = append(names, nameToJavaScript(fieldName))
 		}
 	}
 
 	mCount := v.NumMethod()
 	for i := 0; i < mCount; i++ {
-		methodName := lowerCapital(v.Type().Method(i).Name)
-		if methodName == v.Type().Method(i).Name {
+		methodName := v.Type().Method(i).Name
+		if !isExported(methodName) {
 			continue
 		}
 
-		names = append(names, methodName)
+		names = append(names, nameToJavaScript(methodName))
 	}
 
 	return names, nil
