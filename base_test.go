@@ -208,6 +208,12 @@ func (s *CandySuite) TestPushGlobalValueStringPtr(c *C) {
 	c.Assert(s.stored, Equals, "foo")
 }
 
+func (s *CandySuite) PendingTestPushGlobalValueWithMethods(c *C) {
+	s.ctx.PushGlobalValue("test", reflect.ValueOf(time.Duration(1e5)))
+	c.Assert(s.ctx.PevalString(`store(test.string())`), IsNil)
+	c.Assert(s.stored, Equals, 42.0)
+}
+
 func (s *CandySuite) TestPushGlobalValues(c *C) {
 	s.ctx.PushGlobalValues("test", []reflect.Value{
 		reflect.ValueOf("foo"), reflect.ValueOf("qux"),
