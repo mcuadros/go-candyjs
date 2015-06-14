@@ -166,12 +166,14 @@ func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) 
 	mCount := t.NumMethod()
 	for i := 0; i < mCount; i++ {
 		methodName := lowerCapital(t.Method(i).Name)
+
 		if methodName == t.Method(i).Name {
 			continue
 		}
 
 		ctx.PushGoFunction(v.Method(i).Interface())
 		ctx.PutPropString(obj, methodName)
+
 	}
 }
 
@@ -391,7 +393,6 @@ func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
 	out, err = ctx.handleReturnError(out)
 
 	if err != nil {
-		ctx.PushGoError(err)
 		return duktape.ErrRetError
 	}
 
@@ -406,7 +407,6 @@ func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
 	}
 
 	if err != nil {
-		ctx.PushGoError(err)
 		return duktape.ErrRetInternal
 	}
 
@@ -429,11 +429,6 @@ func (ctx *Context) handleReturnError(out []reflect.Value) ([]reflect.Value, err
 	}
 
 	return out, nil
-}
-
-func (ctx *Context) PushGoError(err error) {
-	//fmt.Println(err)
-	//ctx.Error(102, "foo %s", "qux")
 }
 
 func lowerCapital(name string) string {

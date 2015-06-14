@@ -38,6 +38,10 @@ func main() {
 }
 ```
 
+Caveats
+-------
+- Due to an [incompatibility](https://github.com/svaarala/duktape/issues/154#issuecomment-87077208) with Duktape's error handling system and Go, you can't throw errors from Go. All errors generated from Go functions are generic ones `error error (rc -100)`
+
 License
 -------
 
