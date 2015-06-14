@@ -15,4 +15,4 @@ install:
   - go get -t -v .
 
 script:
-  - $HOME/gopath/bin/goveralls -service=travis-ci -repotoken SqnLMhRchxNSACLBzBPS12uSxaN8fz6fD
+  - $HOME/gopath/bin/goveralls -service=travis-ci -repotoken 7nqvJ0lqCwMwYTIHLvu1ykR1UHHwZ6Qy9
