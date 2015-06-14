@@ -29,6 +29,10 @@ func (ctx *Context) pushGlobalCandyJSObject() {
 	ctx.PushObject()
 	ctx.PushObject()
 	ctx.PutPropString(-2, "_functions")
+	ctx.PushGoFunction(func(pckgName string) error {
+		return ctx.pushPackage(pckgName)
+	})
+	ctx.PutPropString(-2, "require")
 	ctx.PutPropString(-2, "CandyJS")
 	ctx.Pop()
 
@@ -177,6 +181,14 @@ func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) 
 	}
 }
 
+func (ctx *Context) PushGlobalInterface(name string, v interface{}) error {
+	return ctx.PushGlobalValue(name, reflect.ValueOf(v))
+}
+
+func (ctx *Context) PushInterface(v interface{}) error {
+	return ctx.PushValue(reflect.ValueOf(v))
+}
+
 func (ctx *Context) PushGlobalValue(name string, v reflect.Value) error {
 	ctx.PushGlobalObject()
 	if err := ctx.PushValue(v); err != nil {
@@ -218,6 +230,11 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 		}
 
 		return ctx.PushValue(v.Elem())
+
+	case reflect.Slice:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
+			ctx.PushString(string(v.Interface().([]byte)))
+		}
 	default:
 		//Returns nul if the Kind is not supported
 		ctx.PushNull()

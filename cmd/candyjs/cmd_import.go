@@ -171,15 +171,13 @@ const tmpl = `
 package {{.CurPkgName}}
 
 import (
-	"reflect"
 	"{{$fullPkg}}"
 
 	"github.com/mcuadros/go-candyjs"
 )
 
 func init() {
-	candyjs.RegisterPackagePusher("{{$fullPkg}}", func(ctx *candyjs.Context, alias string) {
-		ctx.PushGlobalObject()
+	candyjs.RegisterPackagePusher("{{$fullPkg}}", func(ctx *candyjs.Context) {
 		ctx.PushObject()
 		{{range .Objs}} \
 		{{if isFunc .}} \
@@ -192,14 +190,12 @@ func init() {
 			ctx.PushProxy({{$pkg}}.{{.Name}})
 			ctx.PutPropString(-2, "{{.Name}}")
 		{{else if isConst .}} \
-			ctx.PushValue(reflect.ValueOf({{$pkg}}.{{.Name}}))
+			ctx.PushInterface({{$pkg}}.{{.Name}})
 			ctx.PutPropString(-2, "{{.Name}}")
-		{{else}}
-			//Missing {{.Name}} - {{.Kind}}
+		{{else}} \
+			//ignored {{.Name}} - {{.Kind}}
 		{{end}} \
 		{{end}} \
-		ctx.PutPropString(-2, alias)
-		ctx.Pop()
 	})
 }
 `
