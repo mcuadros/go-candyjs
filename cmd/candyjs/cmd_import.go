@@ -112,23 +112,11 @@ func (c *CmdImport) getPackagePath(pkgName string) (string, error) {
 func (c *CmdImport) render(objs map[string]*ast.Object) error {
 	t := template.New("tmpl")
 	t.Funcs(template.FuncMap{
-		"isFunc": func(obj *ast.Object) bool {
-			return obj.Kind == ast.Fun
-		},
-		"isVar": func(obj *ast.Object) bool {
-			return obj.Kind == ast.Var
-		},
-		"isConst": func(obj *ast.Object) bool {
-			return obj.Kind == ast.Con
-		},
-		"isStruct": func(obj *ast.Object) bool {
-			if obj.Kind != ast.Typ {
-				return false
-			}
-
-			_, isStruct := obj.Decl.(*ast.TypeSpec).Type.(*ast.StructType)
-			return isStruct
-		},
+		"isFunc":           isFunc,
+		"isVar":            isVar,
+		"isConst":          isConst,
+		"isStruct":         isStruct,
+		"nameToJavaScript": nameToJavaScript,
 	})
 
 	_, err := t.Parse(formatTemplateNewLines(tmpl))
@@ -165,6 +153,48 @@ func formatTemplateNewLines(tmpl string) string {
 	return strings.Replace(tmpl, "\\\n", " ", -1)
 }
 
+func isFunc(obj *ast.Object) bool {
+	return obj.Kind == ast.Fun
+}
+
+func isVar(obj *ast.Object) bool {
+	return obj.Kind == ast.Var
+}
+
+func isConst(obj *ast.Object) bool {
+	return obj.Kind == ast.Con
+}
+
+func isStruct(obj *ast.Object) bool {
+	if obj.Kind != ast.Typ {
+		return false
+	}
+
+	_, isStruct := obj.Decl.(*ast.TypeSpec).Type.(*ast.StructType)
+	return isStruct
+}
+
+//TODO: is copy pasted from the main package
+func nameToJavaScript(name string) string {
+	var toLower, keep string
+	for _, c := range name {
+		if c >= 'A' && c <= 'Z' && len(keep) == 0 {
+			toLower += string(c)
+		} else {
+			keep += string(c)
+		}
+	}
+
+	lc := len(toLower)
+	if lc > 1 && lc != len(name) {
+		keep = toLower[lc-1:] + keep
+		toLower = toLower[:lc-1]
+
+	}
+
+	return strings.ToLower(toLower) + keep
+}
+
 const tmpl = `
 {{$fullPkg := .FullPkgName}}
 {{$pkg := .PkgName}}
@@ -182,7 +212,7 @@ func init() {
 		{{range .Objs}} \
 		{{if isFunc .}} \
 			ctx.PushGoFunction({{$pkg}}.{{.Name}})
-			ctx.PutPropString(-2, "{{.Name}}")
+			ctx.PutPropString(-2, "{{nameToJavaScript .Name}}")
 		{{else if isStruct .}} \
 			ctx.PushType({{$pkg}}.{{.Name}}{})
 			ctx.PutPropString(-2, "{{.Name}}")
