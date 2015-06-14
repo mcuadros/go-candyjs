@@ -160,62 +160,62 @@ func (s *CandySuite) TestPushGlobalStruct(c *C) {
 }
 
 func (s *CandySuite) TestPushGlobalValueInt(c *C) {
-	s.ctx.PushGlobalValue("test", reflect.ValueOf(42))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf(42))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *CandySuite) TestPushGlobalValueUint(c *C) {
-	s.ctx.PushGlobalValue("test", reflect.ValueOf(uint(42)))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf(uint(42)))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *CandySuite) TestPushGlobalValueFloat(c *C) {
-	s.ctx.PushGlobalValue("test", reflect.ValueOf(42.2))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf(42.2))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, 42.2)
 }
 
 func (s *CandySuite) TestPushGlobalValueString(c *C) {
-	s.ctx.PushGlobalValue("test", reflect.ValueOf("foo"))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf("foo"))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, "foo")
 }
 
 func (s *CandySuite) TestPushGlobalValueStruct(c *C) {
-	s.ctx.PushGlobalValue("test", reflect.ValueOf(MyStruct{Int: 42}))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf(MyStruct{Int: 42}))
 	c.Assert(s.ctx.PevalString(`store(test.int)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *CandySuite) TestPushGlobalValueStructPtr(c *C) {
-	s.ctx.PushGlobalValue("test", reflect.ValueOf(&MyStruct{Int: 42}))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf(&MyStruct{Int: 42}))
 	c.Assert(s.ctx.PevalString(`store(test.int)`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *CandySuite) TestPushGlobalValueNil(c *C) {
-	s.ctx.PushGlobalValue("test", reflect.ValueOf(nil))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf(nil))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, nil)
 }
 
 func (s *CandySuite) TestPushGlobalValueStringPtr(c *C) {
 	foo := "foo"
-	s.ctx.PushGlobalValue("test", reflect.ValueOf(&foo))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf(&foo))
 	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
 	c.Assert(s.stored, Equals, "foo")
 }
 
 func (s *CandySuite) PendingTestPushGlobalValueWithMethods(c *C) {
-	s.ctx.PushGlobalValue("test", reflect.ValueOf(time.Duration(1e5)))
+	s.ctx.pushGlobalValue("test", reflect.ValueOf(time.Duration(1e5)))
 	c.Assert(s.ctx.PevalString(`store(test.string())`), IsNil)
 	c.Assert(s.stored, Equals, 42.0)
 }
 
 func (s *CandySuite) TestPushGlobalValues(c *C) {
-	s.ctx.PushGlobalValues("test", []reflect.Value{
+	s.ctx.pushGlobalValues("test", []reflect.Value{
 		reflect.ValueOf("foo"), reflect.ValueOf("qux"),
 	})
 

@@ -167,7 +167,7 @@ func (ctx *Context) pushStructFields(obj int, t reflect.Type, v reflect.Value) e
 				continue
 			}
 
-			if err := ctx.PushValue(value); err != nil {
+			if err := ctx.pushValue(value); err != nil {
 				return err
 			}
 
@@ -194,7 +194,7 @@ func (ctx *Context) pushStructMethods(obj int, t reflect.Type, v reflect.Value) 
 
 // PushGlobalInterface like PushInterface but pushed to the global object
 func (ctx *Context) PushGlobalInterface(name string, v interface{}) error {
-	return ctx.PushGlobalValue(name, reflect.ValueOf(v))
+	return ctx.pushGlobalValue(name, reflect.ValueOf(v))
 }
 
 // PushInterface push any type of value to the stack, the following types are
@@ -213,12 +213,12 @@ func (ctx *Context) PushGlobalInterface(name string, v interface{}) error {
 //    to float64
 //  - Any unsuported value is pushed as a null
 func (ctx *Context) PushInterface(v interface{}) error {
-	return ctx.PushValue(reflect.ValueOf(v))
+	return ctx.pushValue(reflect.ValueOf(v))
 }
 
-func (ctx *Context) PushGlobalValue(name string, v reflect.Value) error {
+func (ctx *Context) pushGlobalValue(name string, v reflect.Value) error {
 	ctx.PushGlobalObject()
-	if err := ctx.PushValue(v); err != nil {
+	if err := ctx.pushValue(v); err != nil {
 		return err
 	}
 
@@ -228,10 +228,10 @@ func (ctx *Context) PushGlobalValue(name string, v reflect.Value) error {
 	return nil
 }
 
-func (ctx *Context) PushValue(v reflect.Value) error {
+func (ctx *Context) pushValue(v reflect.Value) error {
 	switch v.Kind() {
 	case reflect.Interface:
-		return ctx.PushValue(v.Elem())
+		return ctx.pushValue(v.Elem())
 	case reflect.Bool:
 		ctx.PushBoolean(v.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
@@ -256,7 +256,7 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 			return nil
 		}
 
-		return ctx.PushValue(v.Elem())
+		return ctx.pushValue(v.Elem())
 	case reflect.Slice:
 		if v.Type().Elem().Kind() == reflect.Uint8 {
 			ctx.PushString(string(v.Interface().([]byte)))
@@ -271,9 +271,9 @@ func (ctx *Context) PushValue(v reflect.Value) error {
 	return nil
 }
 
-func (ctx *Context) PushGlobalValues(name string, vs []reflect.Value) error {
+func (ctx *Context) pushGlobalValues(name string, vs []reflect.Value) error {
 	ctx.PushGlobalObject()
-	if err := ctx.PushValues(vs); err != nil {
+	if err := ctx.pushValues(vs); err != nil {
 		return err
 	}
 
@@ -283,10 +283,10 @@ func (ctx *Context) PushGlobalValues(name string, vs []reflect.Value) error {
 	return nil
 }
 
-func (ctx *Context) PushValues(vs []reflect.Value) error {
+func (ctx *Context) pushValues(vs []reflect.Value) error {
 	arr := ctx.PushArray()
 	for i, v := range vs {
-		if err := ctx.PushValue(v); err != nil {
+		if err := ctx.pushValue(v); err != nil {
 			return err
 		}
 
@@ -304,6 +304,27 @@ func (ctx *Context) PushGlobalGoFunction(name string, f interface{}) (int, error
 // PushGoFunction push a native Go function of any signature to the stack.
 // A pointer to the function is stored in the internals of the context and
 // collected by the duktape GC removing any reference in Go also.
+//
+// The most common types are supported as input arguments, also the variadic
+// functions can be used.
+//
+// You can use JS functions as arguments but you should wrapper it with the
+// helper `CandyJS.proxy`. Example:
+// 	ctx.PushGlobalGoFunction("test", func(fn func(int, int) int) {
+//		...
+//	})
+//
+//	ctx.PevalString(`test(CandyJS.proxy(function(a, b) { return a * b; }));`)
+//
+// The structs can be delivered to the functions in three ways:
+//  - In-line representation as plain JS objects: `{'int':42}`
+//  - Using a previous pushed type using `PushGlobalType`: `new MyModel`
+//  - Using a previous pushed instance using `PushGlobalProxy`
+//
+// All other types are loaded into Go using `json.Unmarshal` internally
+//
+// The following types are not supported chans, complex64 or complex128, and
+// the types rune, byte and arrays are not tested.
 //
 // The returns are handled in the following ways:
 //  - The result of functions with a single return value like `func() int` is
@@ -364,7 +385,7 @@ func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
 }
 
 func (ctx *Context) getValueFromContext(index int, t reflect.Type) reflect.Value {
-	if proxy := ctx.GetProxy(index); proxy != nil {
+	if proxy := ctx.getProxy(index); proxy != nil {
 		return reflect.ValueOf(proxy)
 	}
 
@@ -375,7 +396,7 @@ func (ctx *Context) getValueFromContext(index int, t reflect.Type) reflect.Value
 	return ctx.getValueUsingJson(index, t)
 }
 
-func (ctx *Context) GetProxy(index int) interface{} {
+func (ctx *Context) getProxy(index int) interface{} {
 	if !ctx.IsObject(index) {
 		return nil
 	}
@@ -404,7 +425,7 @@ func (ctx *Context) wrapDuktapePointer(
 		obj := ctx.NormalizeIndex(-1)
 		ctx.PushString("_call")
 		ctx.PushPointer(ptr)
-		ctx.PushValues(in)
+		ctx.pushValues(in)
 		ctx.CallProp(obj, 2)
 
 		return ctx.getCallResult(t)
@@ -463,9 +484,9 @@ func (ctx *Context) callFunction(f interface{}, args []reflect.Value) int {
 	}
 
 	if len(out) > 1 {
-		err = ctx.PushValues(out)
+		err = ctx.pushValues(out)
 	} else {
-		err = ctx.PushValue(out[0])
+		err = ctx.pushValue(out[0])
 	}
 
 	if err != nil {
