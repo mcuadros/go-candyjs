@@ -14,14 +14,61 @@ build extensible applications that allow to the user **execute** arbitrary
 Demo
 ----
 
-![asciicast](https://raw.githubusercontent.com/mcuadros/go-candyjs/master/examples/demo/cast.gif)
+[![asciicast](https://raw.githubusercontent.com/mcuadros/go-candyjs/master/examples/demo/cast.gif)](https://asciinema.org/a/21430)
 
 Features
 --------
-- Embeddable Ecmascript E5/E5.1 compliant engine ([duktape](http://duktape.org/)).
-- Call Go function from JavaScript and vice versa.
-- Transparent interface between Go structs and JavaScript.
-- Import of Go packages into the JavaScript context.
+Embeddable **Ecmascript E5/E5.1 compliant** engine ([duktape](http://duktape.org/)).
+```go
+ctx := candyjs.NewContext()
+ctx.EvalString(`
+  function factorial(n) {
+    if (n === 0) return 1;    
+    return n * factorial(n - 1);
+  }
+
+  print(factorial(10));
+`)  //3628800
+```
+
+Call **Go functions** from JavaScript and vice versa.
+```go
+ctx := candyjs.NewContext()
+ctx.PushGlobalGoFunction("golangMultiply", func(a, b int) int {
+    return a * b
+})
+
+ctx.EvalString(`print(golangMultiply(5, 10));`) //50
+```
+
+Transparent interface between **Go structs** and JavaScript.
+```go
+type MyStruct struct {
+    Number int
+}
+
+func (m *MyStruct) Multiply(x int) int {
+    return m.Number * x
+}
+...
+ctx := candyjs.NewContext()
+ctx.PushGlobalStruct("golangStruct", &MyStruct{10})
+
+ctx.EvalString(`print(golangStruct.number);`) //10
+ctx.EvalString(`print(golangStruct.multiply(5));`) //50
+```
+
+Import of **Go packages** into the JavaScript context.
+```go
+//go:generate candyjs import fmt
+...
+ctx := candyjs.NewContext()
+ctx.EvalString(`
+    var fmt = CandyJS.require('fmt');
+    fmt.printf('candyjs is %s', 'awesome')
+`) // 'candyjs is awesome'
+```
+
 
 Installation
 ------------
@@ -39,10 +86,27 @@ please be sure that `$GOPATH/bin` is on your `$PATH`
 Examples
 --------
 
+### JavaScript running a HTTP server 
+
 In this example a [`gin`](https://github.com/gin-gonic/gin) server is executed
 and a small JSON is server. In CandyJS you can import Go packages directly if
 they are [defined](https://github.com/mcuadros/go-candyjs/blob/master/examples/complex/main.go#L10:L13)
 previously on the Go code. 
+
+**Interpreter code** (`main.go`)
+
+```go
+...
+//go:generate candyjs import time
+//go:generate candyjs import github.com/gin-gonic/gin
+func main() {
+    ctx := candyjs.NewContext()
+    ctx.PevalFile("example.js")
+}
+
+```
+
+**Program code** (`example.js`)
 
 ```js
 var time = CandyJS.require('time');
@@ -61,18 +125,6 @@ engine.get("/back", CandyJS.proxy(function(ctx) {
 }));
 
 engine.run(':8080');
-```
-
-The previous JS can be executed using this small piece of code:
-```go
-...
-//go:generate candyjs import time
-//go:generate candyjs import github.com/gin-gonic/gin
-func main() {
-	ctx := candyjs.NewContext()
-	ctx.PevalFile("example.js")
-}
-
 ```
 
 Caveats
