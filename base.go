@@ -229,6 +229,11 @@ func (ctx *Context) pushGlobalValue(name string, v reflect.Value) error {
 }
 
 func (ctx *Context) pushValue(v reflect.Value) error {
+	if !v.IsValid() {
+		ctx.PushNull()
+		return nil
+	}
+
 	switch v.Kind() {
 	case reflect.Interface:
 		return ctx.pushValue(v.Elem())
@@ -260,12 +265,18 @@ func (ctx *Context) pushValue(v reflect.Value) error {
 	case reflect.Slice:
 		if v.Type().Elem().Kind() == reflect.Uint8 {
 			ctx.PushString(string(v.Interface().([]byte)))
-		} else {
-			ctx.PushNull()
+			return nil
 		}
+
+		fallthrough
 	default:
-		//Returns nul if the Kind is not supported
-		ctx.PushNull()
+		js, err := json.Marshal(v.Interface())
+		if err != nil {
+			return err
+		}
+
+		ctx.PushString(string(js))
+		ctx.JsonDecode(-1)
 	}
 
 	return nil

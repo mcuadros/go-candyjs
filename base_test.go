@@ -232,6 +232,12 @@ func (s *CandySuite) TestPushGlobalValueNil(c *C) {
 	c.Assert(s.stored, Equals, nil)
 }
 
+func (s *CandySuite) TestPushGlobalValueDefault(c *C) {
+	s.ctx.pushGlobalValue("test", reflect.ValueOf([]string{"foo", "bar"}))
+	c.Assert(s.ctx.PevalString(`store(test)`), IsNil)
+	c.Assert(s.stored, DeepEquals, []interface{}{"foo", "bar"})
+}
+
 func (s *CandySuite) TestPushGlobalValueStringPtr(c *C) {
 	foo := "foo"
 	s.ctx.pushGlobalValue("test", reflect.ValueOf(&foo))
