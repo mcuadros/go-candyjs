@@ -24,5 +24,5 @@ func (s *CandySuite) TestPushGlobalPackage(c *C) {
 }
 
 func (s *CandySuite) TestPushGlobalPackage_NotFound(c *C) {
-	c.Assert(s.ctx.PushGlobalPackage("qux", "qux"), Equals, PackageNotFound)
+	c.Assert(s.ctx.PushGlobalPackage("qux", "qux"), Equals, ErrPackageNotFound)
 }

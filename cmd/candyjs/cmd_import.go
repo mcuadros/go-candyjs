@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -16,6 +15,8 @@ import (
 	"text/template"
 )
 
+// CmdImport generates a new candyjs.PackagePusher function for the given
+// Package, the package can be any builtin or any other third party one.
 type CmdImport struct {
 	Output string `short:"" long:"output" description:"output file name" default:"pkg_%s.go"`
 	Debug  bool   `short:"" long:"debug" description:"active debug messages"`
@@ -26,6 +27,7 @@ type CmdImport struct {
 	curPkgName, fullPkgName, pkgName string
 }
 
+// Execute run the CmdImport, follows the go-flags interface
 func (c *CmdImport) Execute(args []string) error {
 	c.fullPkgName = c.Args.Package
 	fmt.Printf("Processing %q\n", c.Args.Package)
@@ -41,7 +43,7 @@ func (c *CmdImport) Execute(args []string) error {
 
 func (c *CmdImport) getCurrentPckgName() {
 	pkgs, _ := parser.ParseDir(token.NewFileSet(), ".", nil, 0)
-	for pkgName, _ := range pkgs {
+	for pkgName := range pkgs {
 		c.curPkgName = pkgName
 	}
 }
@@ -106,7 +108,7 @@ func (c *CmdImport) getPackagePath(pkgName string) (string, error) {
 		}
 	}
 
-	return "", errors.New(fmt.Sprintf("package %q not found", pkgName))
+	return "", fmt.Errorf("package %q not found", pkgName)
 }
 
 func (c *CmdImport) render(objs map[string]*ast.Object) error {

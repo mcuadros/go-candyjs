@@ -10,11 +10,13 @@ import (
 
 const goProxyPtrProp = "\xff" + "goProxyPtrProp"
 
+// Context represents a Duktape thread and its call and value stacks.
 type Context struct {
 	storage *storage
 	*duktape.Context
 }
 
+// NewContext returns a new Context
 func NewContext() *Context {
 	ctx := &Context{Context: duktape.New()}
 	ctx.storage = newStorage()
@@ -47,6 +49,8 @@ func (ctx *Context) pushGlobalCandyJSObject() {
 	}`)
 }
 
+// SetRequireFunction sets the modSearch function into the Duktape JS object
+// http://duktape.org/guide.html#builtin-duktape-modsearch-modloade
 func (ctx *Context) SetRequireFunction(f interface{}) int {
 	ctx.PushGlobalObject()
 	ctx.GetPropString(-1, "Duktape")
@@ -367,7 +371,8 @@ func (ctx *Context) getFunctionArgs(f interface{}) []reflect.Value {
 	inCount := def.NumIn()
 
 	top := ctx.GetTopIndex()
-	args := make([]reflect.Value, 0)
+
+	var args []reflect.Value
 	for index := 0; index <= top; index++ {
 		var t reflect.Type
 		if (index+1) < inCount || (index < inCount && !isVariadic) {
@@ -404,7 +409,7 @@ func (ctx *Context) getValueFromContext(index int, t reflect.Type) reflect.Value
 		return ctx.getFunction(index, t)
 	}
 
-	return ctx.getValueUsingJson(index, t)
+	return ctx.getValueUsingJSON(index, t)
 }
 
 func (ctx *Context) getProxy(index int) interface{} {
@@ -444,7 +449,7 @@ func (ctx *Context) wrapDuktapePointer(
 }
 
 func (ctx *Context) getCallResult(t reflect.Type) []reflect.Value {
-	result := make([]reflect.Value, 0)
+	var result []reflect.Value
 
 	oCount := t.NumOut()
 	if oCount == 1 {
@@ -474,7 +479,7 @@ func (ctx *Context) getProxyPtrProp(index int) unsafe.Pointer {
 	return ctx.GetPointer(-1)
 }
 
-func (ctx *Context) getValueUsingJson(index int, t reflect.Type) reflect.Value {
+func (ctx *Context) getValueUsingJSON(index int, t reflect.Type) reflect.Value {
 	v := reflect.New(t).Interface()
 
 	js := ctx.JsonEncode(index)

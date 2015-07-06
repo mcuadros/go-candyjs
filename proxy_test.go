@@ -16,7 +16,6 @@ func (s *CandySuite) TestProxy_Get(c *C) {
 }
 
 func (s *CandySuite) TestProxy_Set(c *C) {
-
 	providers := [][]interface{}{
 		{"int", nil, 0},
 		{"int", 42.0, 42},

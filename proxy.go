@@ -6,18 +6,17 @@ import (
 	"reflect"
 )
 
-var (
-	UnexpectedPointer = errors.New("unexpected pointer")
-	UndefinedProperty = errors.New("undefined property")
+// ErrUndefinedProperty is throw when a property for a given proxied object on
+// javascript cannot be found, basically a valid method or field cannot found.
+var ErrUndefinedProperty = errors.New("undefined property")
 
-	p = &proxy{}
-)
+var p = &proxy{}
 
 type proxy struct{}
 
 func (p *proxy) has(t interface{}, k string) bool {
 	_, err := p.getProperty(t, k)
-	return err != UndefinedProperty
+	return err != ErrUndefinedProperty
 }
 
 func (p *proxy) get(t interface{}, k string, recv interface{}) (interface{}, error) {
@@ -52,7 +51,7 @@ func (p *proxy) getProperty(t interface{}, key string) (reflect.Value, error) {
 	v := reflect.ValueOf(t)
 	r, found := p.getValueFromKind(key, v)
 	if !found {
-		return r, UndefinedProperty
+		return r, ErrUndefinedProperty
 	}
 
 	return r, nil
@@ -99,8 +98,8 @@ func (p *proxy) getValueFromKindStruct(key string, v reflect.Value) (reflect.Val
 }
 
 func (p *proxy) getValueFromKindMap(key string, v reflect.Value) (reflect.Value, bool) {
-	kValue := reflect.ValueOf(key)
-	r := v.MapIndex(kValue)
+	keyValue := reflect.ValueOf(key)
+	r := v.MapIndex(keyValue)
 
 	return r, r.IsValid()
 }
@@ -123,8 +122,8 @@ func (p *proxy) enumerate(t interface{}) (interface{}, error) {
 
 func (p *proxy) getPropertyNames(t interface{}) ([]string, error) {
 	v := reflect.ValueOf(t)
-	names := make([]string, 0)
 
+	var names []string
 	var err error
 	switch v.Kind() {
 	case reflect.Ptr:
