@@ -24,15 +24,15 @@ func RegisterPackagePusher(pckgName string, f PackagePusher) {
 // PushGlobalPackage all the functions and types from the given package using
 // the pre-registered PackagePusher function.
 func (ctx *Context) PushGlobalPackage(pckgName, alias string) error {
-	ctx.PushGlobalObject()
+	ctx.Duktape.PushGlobalObject()
 
 	err := ctx.pushPackage(pckgName)
 	if err != nil {
 		return err
 	}
 
-	ctx.PutPropString(-2, alias)
-	ctx.Pop()
+	ctx.Duktape.PutPropString(-2, alias)
+	ctx.Duktape.Pop()
 
 	return nil
 }

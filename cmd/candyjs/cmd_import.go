@@ -210,20 +210,20 @@ import (
 
 func init() {
 	candyjs.RegisterPackagePusher("{{$fullPkg}}", func(ctx *candyjs.Context) {
-		ctx.PushObject()
+		ctx.Duktape.PushObject()
 		{{range .Objs}} \
 		{{if isFunc .}} \
-			ctx.PushGoFunction({{$pkg}}.{{.Name}})
-			ctx.PutPropString(-2, "{{nameToJavaScript .Name}}")
+			ctx.PushGoFunction(candyjs.NoTransaction, {{$pkg}}.{{.Name}})
+			ctx.Duktape.PutPropString(-2, "{{nameToJavaScript .Name}}")
 		{{else if isStruct .}} \
-			ctx.PushType({{$pkg}}.{{.Name}}{})
-			ctx.PutPropString(-2, "{{.Name}}")
+			ctx.PushType(candyjs.NoTransaction, {{$pkg}}.{{.Name}}{})
+			ctx.Duktape.PutPropString(-2, "{{.Name}}")
 		{{else if isVar .}} \
-			ctx.PushProxy({{$pkg}}.{{.Name}})
-			ctx.PutPropString(-2, "{{.Name}}")
+			ctx.PushProxy(candyjs.NoTransaction, {{$pkg}}.{{.Name}})
+			ctx.Duktape.PutPropString(-2, "{{.Name}}")
 		{{else if isConst .}} \
-			ctx.PushInterface({{$pkg}}.{{.Name}})
-			ctx.PutPropString(-2, "{{.Name}}")
+			ctx.PushInterface(candyjs.NoTransaction, {{$pkg}}.{{.Name}})
+			ctx.Duktape.PutPropString(-2, "{{.Name}}")
 		{{else}} \
 			//ignored {{.Name}} - {{.Kind}}
 		{{end}} \

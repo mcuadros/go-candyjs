@@ -12,5 +12,5 @@ import (
 func main() {
 	script := os.Args[1]
 	ctx := candyjs.NewContext()
-	ctx.PevalFile(script)
+	ctx.EvalFile(script)
 }

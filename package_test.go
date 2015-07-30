@@ -13,13 +13,13 @@ func (s *CandySuite) TestRegisterPackagePusher(c *C) {
 
 func (s *CandySuite) TestPushGlobalPackage(c *C) {
 	fn := func(ctx *Context) {
-		ctx.PushString("qux")
+		ctx.Duktape.PushString("qux")
 	}
 
 	RegisterPackagePusher("foo", fn)
 	c.Assert(s.ctx.PushGlobalPackage("foo", "bar"), IsNil)
 
-	s.ctx.PevalString(`store(bar)`)
+	s.ctx.Duktape.PevalString(`store(bar)`)
 	c.Assert(s.stored, Equals, "qux")
 }
 

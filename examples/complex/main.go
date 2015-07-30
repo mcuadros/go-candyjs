@@ -16,5 +16,8 @@ func main() {
 	fmt.Printf("Executing %q\n", script)
 
 	ctx := candyjs.NewContext()
-	ctx.PevalFile(script)
+	err := ctx.EvalFile(candyjs.NoTransaction, script)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
