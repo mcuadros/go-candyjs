@@ -10,7 +10,17 @@ import (
 // javascript cannot be found, basically a valid method or field cannot found.
 var ErrUndefinedProperty = errors.New("undefined property")
 
-var p = &proxy{}
+var (
+	p = &proxy{}
+
+	//internalKeys map contains the keys that are called by duktape and cannot
+	//throw an error, the value of the map is the value returned when this keys
+	//are requested.
+	internalKeys = map[string]interface{}{
+		"toJSON": nil, "valueOf": nil,
+		"toString": func() string { return "[candyjs Proxy]" },
+	}
+)
 
 type proxy struct{}
 
@@ -22,6 +32,10 @@ func (p *proxy) has(t interface{}, k string) bool {
 func (p *proxy) get(t interface{}, k string, recv interface{}) (interface{}, error) {
 	f, err := p.getProperty(t, k)
 	if err != nil {
+		if v, isInternal := internalKeys[k]; isInternal {
+			return v, nil
+		}
+
 		return nil, err
 	}
 

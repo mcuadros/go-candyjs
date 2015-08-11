@@ -1,6 +1,8 @@
 package candyjs
 
 import (
+	"encoding/json"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -13,6 +15,18 @@ func (s *CandySuite) TestProxy_Get(c *C) {
 	v, err := p.get(&MyStruct{Int: 42}, "int", nil)
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, 42)
+}
+
+func (s *CandySuite) TestProxy_GetUndefinedProperty(c *C) {
+	v, err := p.get(&MyStruct{Int: 42}, "foo", nil)
+	c.Assert(err, Equals, ErrUndefinedProperty)
+	c.Assert(v, Equals, nil)
+}
+
+func (s *CandySuite) TestProxy_GetInternal(c *C) {
+	v, err := p.get(&MyStruct{Int: 42}, "toJSON", nil)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, nil)
 }
 
 func (s *CandySuite) TestProxy_Set(c *C) {
@@ -100,6 +114,34 @@ func (s *CandySuite) testProxyFunction(c *C, value, key interface{}) {
 	val, err := p.get(value, key.(string), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, NotNil)
+}
+
+func (s *CandySuite) TestProxyInternalKeys(c *C) {
+	s.ctx.PushGlobalObject()
+	s.ctx.PushObject()
+	s.ctx.PushProxy(&MyStruct{Int: 142})
+	s.ctx.PutPropString(-2, "obj")
+	s.ctx.PutPropString(-2, "foo")
+	s.ctx.Pop()
+
+	//calls valueOf
+	err := s.ctx.PevalString(`store(1 == foo.obj)`)
+	c.Assert(err, IsNil)
+	c.Assert(s.stored, Equals, false)
+
+	//calls valueOf also toString
+	err = s.ctx.PevalString(`store("[candyjs Proxy]" == foo.obj)`)
+	c.Assert(err, IsNil)
+	c.Assert(s.stored, Equals, true)
+
+	err = s.ctx.PevalString(`foo.obj`)
+	c.Assert(err, IsNil)
+
+	//calls toJson
+	js := s.ctx.JsonEncode(-1)
+	r := make(map[string]interface{}, 0)
+	json.Unmarshal([]byte(js), &r)
+	c.Assert(r["int"], Equals, 142.0)
 }
 
 type customInt int
