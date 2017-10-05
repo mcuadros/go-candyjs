@@ -2,8 +2,8 @@ go-candyjs [![Build Status](https://travis-ci.org/mcuadros/go-candyjs.png?branch
 ==========
 
 *CandyJS* is an intent of create a fully **transparent bridge between Go and the
-JavaScript** engine [duktape](http://duktape.org/). Basicly is a syntax-sugar
-library built it on top of [go-duktape](https://github.com/olebedev/go-duktape)
+JavaScript** engine [duktape](http://duktape.org/). Basically it's a syntax-sugar
+library built on top of [go-duktape](https://github.com/olebedev/go-duktape)
 using reflection techniques.
 
 #### ok but what for ...
